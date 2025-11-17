@@ -957,6 +957,9 @@ function filterByTag(tagName) {
         selectedTags.add(normalizedTag);
     }
     
+    // Navigate to Images tab to see filtered results
+    switchTab('images');
+    
     // Update UI to show active filters
     updateTagFilterDisplay();
     
