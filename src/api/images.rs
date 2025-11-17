@@ -264,8 +264,9 @@ pub async fn scan_directory(
 ) -> Result<HttpResponse, actix_web::Error> {
     info!("Scan endpoint called: path={}, recursive={:?}", req.path, req.recursive);
     
-    // Trim whitespace from path
+    // Trim whitespace and remove surrounding quotes if present
     let path_str = req.path.trim();
+    let path_str = path_str.trim_matches('\'').trim_matches('"').trim();
     let path = PathBuf::from(path_str);
     let recursive = req.recursive.unwrap_or(true);
     
