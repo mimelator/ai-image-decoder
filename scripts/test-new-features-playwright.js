@@ -312,9 +312,9 @@ async function testAdvancedSearchFilters(page) {
             await page.waitForTimeout(1000);
             console.log('  ✓ Sampler filter applied');
             
-            // Test Clear Filters
+            // Test Clear Filters (use specific selector within image-filters panel)
             console.log('  Testing clear filters...');
-            const clearBtn = page.locator('button:has-text("Clear Filters")');
+            const clearBtn = page.locator('#image-filters button:has-text("Clear Filters")');
             if (await clearBtn.isVisible()) {
                 await clearBtn.click();
                 await page.waitForTimeout(1000);
