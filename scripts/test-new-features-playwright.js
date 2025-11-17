@@ -205,8 +205,8 @@ async function testExportFunctionality(page) {
         // Set up download listener
         const downloadPromise = page.waitForEvent('download', { timeout: 10000 }).catch(() => null);
         
-        // Click export JSON button
-        const exportJsonBtn = page.locator('button:has-text("Export JSON")');
+        // Click export JSON button (specific to prompts tab)
+        const exportJsonBtn = page.locator('#export-prompts-btn');
         if (await exportJsonBtn.isVisible({ timeout: 5000 })) {
             await exportJsonBtn.click();
             await page.waitForTimeout(2000);
@@ -233,8 +233,8 @@ async function testExportFunctionality(page) {
         // Set up download listener
         const downloadPromise2 = page.waitForEvent('download', { timeout: 10000 }).catch(() => null);
         
-        // Click export JSON button
-        const exportImagesJsonBtn = page.locator('button:has-text("Export JSON")');
+        // Click export JSON button (specific to images tab)
+        const exportImagesJsonBtn = page.locator('#export-images-btn');
         if (await exportImagesJsonBtn.isVisible({ timeout: 5000 })) {
             await exportImagesJsonBtn.click();
             await page.waitForTimeout(2000);
@@ -251,7 +251,7 @@ async function testExportFunctionality(page) {
         
         // Test Export Markdown
         console.log('  Testing export markdown...');
-        const exportMdBtn = page.locator('button:has-text("Export MD")').first();
+        const exportMdBtn = page.locator('#export-images-md-btn');
         if (await exportMdBtn.isVisible({ timeout: 5000 })) {
             const downloadPromise3 = page.waitForEvent('download', { timeout: 10000 }).catch(() => null);
             await exportMdBtn.click();
