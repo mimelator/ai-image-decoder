@@ -834,18 +834,34 @@ async function showImageDetail(imageId) {
             const tags = tagsData.tags || [];
             const positiveTags = tags.filter(t => t.tag_type !== 'negative');
             
-            if (positiveTags.length > 0) {
-                tagsHtml = `
-                    <div class="tags-section">
-                        <h3>Tags</h3>
-                        <div class="tags-list">
-                            ${positiveTags.map(t => `<span class="tag tag-${t.tag_type}">${escapeHtml(t.name)}</span>`).join('')}
-                        </div>
+            tagsHtml = `
+                <div class="tags-section">
+                    <h3>Tags</h3>
+                    <div class="tags-list" id="image-tags-list-${imageId}">
+                        ${positiveTags.length > 0 ? positiveTags.map(t => `
+                            <span class="tag tag-${t.tag_type}">
+                                ${escapeHtml(t.name)}
+                                <button class="tag-remove" onclick="removeTagFromImage('${imageId}', '${t.id}', '${escapeHtml(t.name)}')" title="Remove tag">×</button>
+                            </span>
+                        `).join('') : '<div class="loading" style="color: var(--text-secondary);">No tags</div>'}
                     </div>
-                `;
-            }
+                    <div class="add-tag-controls" style="margin-top: 1rem; display: flex; gap: 0.5rem; align-items: center;">
+                        <input type="text" id="new-tag-name-${imageId}" class="input-full" placeholder="Tag name" style="flex: 1; padding: 0.5rem;">
+                        <select id="new-tag-type-${imageId}" class="select-input" style="padding: 0.5rem;">
+                            <option value="style">Style</option>
+                            <option value="subject">Subject</option>
+                            <option value="technique">Technique</option>
+                            <option value="quality">Quality</option>
+                            <option value="model">Model</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                        <button class="btn-primary" onclick="addTagToImage('${imageId}')" style="padding: 0.5rem 1rem;">Add Tag</button>
+                    </div>
+                </div>
+            `;
         } catch (e) {
             // Tags are optional, fail silently
+            tagsHtml = '<div class="tags-section"><h3>Tags</h3><div class="loading">Failed to load tags</div></div>';
         }
         
         // Load metadata
@@ -953,6 +969,108 @@ async function deleteImage(imageId) {
     } catch (error) {
         console.error('Failed to delete image:', error);
         showToast('error', 'Delete Failed', error.message);
+    }
+}
+
+async function addTagToImage(imageId) {
+    const tagNameInput = document.getElementById(`new-tag-name-${imageId}`);
+    const tagTypeSelect = document.getElementById(`new-tag-type-${imageId}`);
+    
+    if (!tagNameInput || !tagTypeSelect) {
+        showToast('error', 'Error', 'Tag input fields not found');
+        return;
+    }
+    
+    const tagName = tagNameInput.value.trim();
+    const tagType = tagTypeSelect.value;
+    
+    if (!tagName) {
+        showToast('warning', 'Invalid Input', 'Please enter a tag name');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/tags/image/${imageId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                tag_name: tagName,
+                tag_type: tagType
+            })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Failed to add tag' }));
+            throw new Error(errorData.error || 'Failed to add tag');
+        }
+        
+        // Clear input
+        tagNameInput.value = '';
+        
+        // Reload tags for this image
+        const tagsData = await apiCall(`/tags/image/${imageId}`);
+        const tags = tagsData.tags || [];
+        const positiveTags = tags.filter(t => t.tag_type !== 'negative');
+        
+        // Update tags list
+        const tagsList = document.getElementById(`image-tags-list-${imageId}`);
+        if (tagsList) {
+            tagsList.innerHTML = positiveTags.length > 0 
+                ? positiveTags.map(t => `
+                    <span class="tag tag-${t.tag_type}">
+                        ${escapeHtml(t.name)}
+                        <button class="tag-remove" onclick="removeTagFromImage('${imageId}', '${t.id}', '${escapeHtml(t.name)}')" title="Remove tag">×</button>
+                    </span>
+                `).join('')
+                : '<div class="loading" style="color: var(--text-secondary);">No tags</div>';
+        }
+        
+        showToast('success', 'Tag Added', `Added tag: ${tagName}`);
+    } catch (error) {
+        console.error('Failed to add tag:', error);
+        showToast('error', 'Failed to Add Tag', error.message);
+    }
+}
+
+async function removeTagFromImage(imageId, tagId, tagName) {
+    if (!confirm(`Remove tag "${tagName}" from this image?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/tags/image/${imageId}/${tagId}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Failed to remove tag' }));
+            throw new Error(errorData.error || 'Failed to remove tag');
+        }
+        
+        // Reload tags for this image
+        const tagsData = await apiCall(`/tags/image/${imageId}`);
+        const tags = tagsData.tags || [];
+        const positiveTags = tags.filter(t => t.tag_type !== 'negative');
+        
+        // Update tags list
+        const tagsList = document.getElementById(`image-tags-list-${imageId}`);
+        if (tagsList) {
+            tagsList.innerHTML = positiveTags.length > 0 
+                ? positiveTags.map(t => `
+                    <span class="tag tag-${t.tag_type}">
+                        ${escapeHtml(t.name)}
+                        <button class="tag-remove" onclick="removeTagFromImage('${imageId}', '${t.id}', '${escapeHtml(t.name)}')" title="Remove tag">×</button>
+                    </span>
+                `).join('')
+                : '<div class="loading" style="color: var(--text-secondary);">No tags</div>';
+        }
+        
+        showToast('success', 'Tag Removed', `Removed tag: ${tagName}`);
+    } catch (error) {
+        console.error('Failed to remove tag:', error);
+        showToast('error', 'Failed to Remove Tag', error.message);
     }
 }
 
