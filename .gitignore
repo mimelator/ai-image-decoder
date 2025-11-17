@@ -1,0 +1,9 @@
+target/
+data/
+*.db
+*.sqlite
+*.sqlite3
+*.env
+*.env.local
+test-reports/
+node_modules/

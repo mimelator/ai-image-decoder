@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Image Decoder - Prompt Explorer</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="dark-mode">
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="logo">🎨 AI Image Decoder</h1>
+                <div class="header-actions">
+                    <button id="theme-toggle" class="btn-icon" title="Toggle theme">
+                        <span class="theme-icon">🌙</span>
+                    </button>
+                    <button id="scan-btn" class="btn-primary">Scan Directory</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="nav-tabs">
+            <button class="nav-tab active" data-tab="images">Images</button>
+            <button class="nav-tab" data-tab="prompts">Prompts</button>
+            <button class="nav-tab" data-tab="collections">Collections</button>
+            <button class="nav-tab" data-tab="tags">Tags</button>
+            <button class="nav-tab" data-tab="stats">Statistics</button>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Images Tab -->
+            <div id="images-tab" class="tab-content active">
+                <div class="search-bar">
+                    <input type="text" id="image-search" placeholder="Search images..." class="search-input">
+                    <button id="image-search-btn" class="btn-secondary">Search</button>
+                </div>
+                <div id="images-grid" class="images-grid">
+                    <!-- Images will be loaded here -->
+                </div>
+                <div class="pagination" id="images-pagination"></div>
+            </div>
+
+            <!-- Prompts Tab -->
+            <div id="prompts-tab" class="tab-content">
+                <div class="search-bar">
+                    <input type="text" id="prompt-search" placeholder="Search prompts..." class="search-input">
+                    <button id="prompt-search-btn" class="btn-secondary">Search</button>
+                    <button id="export-prompts-btn" class="btn-secondary">Export</button>
+                </div>
+                <div id="prompts-list" class="prompts-list">
+                    <!-- Prompts will be loaded here -->
+                </div>
+                <div class="pagination" id="prompts-pagination"></div>
+            </div>
+
+            <!-- Collections Tab -->
+            <div id="collections-tab" class="tab-content">
+                <div class="section-header">
+                    <h2>Collections</h2>
+                    <button id="create-collection-btn" class="btn-primary">Create Collection</button>
+                </div>
+                <div id="collections-list" class="collections-list">
+                    <!-- Collections will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Tags Tab -->
+            <div id="tags-tab" class="tab-content">
+                <div class="search-bar">
+                    <input type="text" id="tag-filter" placeholder="Filter tags..." class="search-input">
+                    <select id="tag-type-filter" class="select-input">
+                        <option value="">All Types</option>
+                        <option value="quality">Quality</option>
+                        <option value="subject">Subject</option>
+                        <option value="style">Style</option>
+                        <option value="technique">Technique</option>
+                        <option value="negative">Negative</option>
+                        <option value="model">Model</option>
+                    </select>
+                </div>
+                <div id="tags-cloud" class="tags-cloud">
+                    <!-- Tags will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Statistics Tab -->
+            <div id="stats-tab" class="tab-content">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-images">0</div>
+                        <div class="stat-label">Images</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-prompts">0</div>
+                        <div class="stat-label">Prompts</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-unique-prompts">0</div>
+                        <div class="stat-label">Unique Prompts</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-tags">0</div>
+                        <div class="stat-label">Tags</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-collections">0</div>
+                        <div class="stat-label">Collections</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-total-size">0 MB</div>
+                        <div class="stat-label">Total Size</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <!-- Scan Modal -->
+    <div id="scan-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Scan Directory</h2>
+                <button class="modal-close" data-modal="scan-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Select a directory to scan for AI-generated images:</p>
+                <input type="text" id="scan-path" placeholder="/path/to/images" class="input-full">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="scan-recursive" checked>
+                    <label for="scan-recursive">Scan subdirectories</label>
+                </div>
+                <div id="scan-progress" class="scan-progress hidden">
+                    <div class="progress-bar">
+                        <div id="progress-fill" class="progress-fill"></div>
+                    </div>
+                    <div class="progress-text">
+                        <span id="progress-current">0</span> / <span id="progress-total">0</span> files processed
+                    </div>
+                    <div id="scan-status" class="scan-status"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="scan-start-btn" class="btn-primary">Start Scan</button>
+                <button class="btn-secondary modal-close" data-modal="scan-modal">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Detail Modal -->
+    <div id="image-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2 id="image-modal-title">Image Details</h2>
+                <button class="modal-close" data-modal="image-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="image-detail-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Prompt Detail Modal -->
+    <div id="prompt-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>Prompt Details</h2>
+                <button class="modal-close" data-modal="prompt-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="prompt-detail-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
+
