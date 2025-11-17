@@ -1,5 +1,6 @@
 use actix_web::{web, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use crate::storage::{
     Database, ImageRepository, PromptRepository, MetadataRepository,
     CollectionRepository, TagRepository,
@@ -38,7 +39,7 @@ pub async fn health() -> impl Responder {
 }
 
 // Version endpoint
-pub async fn version(query: web::Query<std::collections::HashMap<String, String>>) -> impl Responder {
+pub async fn version(query: web::Query<HashMap<String, String>>) -> impl Responder {
     use crate::api::version_check;
     
     // Get current version
