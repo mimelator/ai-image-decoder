@@ -8,7 +8,7 @@
 
 const { chromium } = require('playwright');
 
-const SERVER_URL = process.env.SERVER_URL || 'http://localhost:8080';
+const SERVER_URL = process.env.SERVER_URL || 'http://localhost:9000';
 const TIMEOUT = 30000;
 
 async function waitForServer() {

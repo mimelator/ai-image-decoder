@@ -25,13 +25,13 @@ cargo run --release
 ./target/release/ai-image-decoder
 ```
 
-The server will start on `http://localhost:8080` by default.
+The server will start on `http://localhost:9000` by default.
 
 ### 3. Access the Web UI
 
 Open your browser and navigate to:
 ```
-http://localhost:8080
+http://localhost:9000
 ```
 
 ## Usage Modes
@@ -67,7 +67,7 @@ cargo run
 ```
 
 Then:
-1. Open `http://localhost:8080` in your browser
+1. Open `http://localhost:9000` in your browser
 2. Click "Scan Directory" button
 3. Enter directory path
 4. Click "Start Scan"
@@ -82,18 +82,18 @@ Use the REST API directly:
 cargo run
 
 # Scan directory via API
-curl -X POST http://localhost:8080/api/v1/images/scan \
+curl -X POST http://localhost:9000/api/v1/images/scan \
   -H "Content-Type: application/json" \
   -d '{"path": "/path/to/images", "recursive": true}'
 
 # Check scan status
-curl http://localhost:8080/api/v1/images/scan/status
+curl http://localhost:9000/api/v1/images/scan/status
 
 # List images
-curl http://localhost:8080/api/v1/images?page=1&limit=20
+curl http://localhost:9000/api/v1/images?page=1&limit=20
 
 # Search prompts
-curl "http://localhost:8080/api/v1/prompts/search?q=blue%20heron"
+curl "http://localhost:9000/api/v1/prompts/search?q=blue%20heron"
 ```
 
 ## Configuration
@@ -104,7 +104,7 @@ Create a `.env` file (optional):
 
 ```bash
 # Server configuration
-PORT=8080
+PORT=9000
 HOST=0.0.0.0
 
 # Database configuration
@@ -123,7 +123,7 @@ CHECK_VERSION_UPDATES=true
 
 ### Default Values
 
-- **Port**: 8080
+- **Port**: 9000
 - **Host**: 0.0.0.0
 - **Database**: `./data/images.db`
 - **Log Level**: info
@@ -295,18 +295,18 @@ GET /api/v1/stats/prompts
   Verify: Check output for processed/skipped/errors
 
 - [ ] **Web UI Access**
-  - Open `http://localhost:8080`
+  - Open `http://localhost:9000`
   - Verify: UI loads without errors
 
 - [ ] **Health Check**
   ```bash
-  curl http://localhost:8080/health
+  curl http://localhost:9000/health
   ```
   Verify: Returns `{"status": "ok", "service": "ai-image-decoder"}`
 
 - [ ] **Version Check**
   ```bash
-  curl http://localhost:8080/version
+  curl http://localhost:9000/version
   ```
   Verify: Returns version info
 
@@ -326,7 +326,7 @@ GET /api/v1/stats/prompts
 
 - [ ] **Scan via API**
   ```bash
-  curl -X POST http://localhost:8080/api/v1/images/scan \
+  curl -X POST http://localhost:9000/api/v1/images/scan \
     -H "Content-Type: application/json" \
     -d '{"path": "/path/to/images", "recursive": true}'
   ```
@@ -355,19 +355,19 @@ GET /api/v1/stats/prompts
 
 - [ ] **List Images**
   ```bash
-  curl http://localhost:8080/api/v1/images?page=1&limit=10
+  curl http://localhost:9000/api/v1/images?page=1&limit=10
   ```
   Verify: Returns paginated image list
 
 - [ ] **Search Prompts**
   ```bash
-  curl "http://localhost:8080/api/v1/prompts/search?q=test"
+  curl "http://localhost:9000/api/v1/prompts/search?q=test"
   ```
   Verify: Returns matching prompts
 
 - [ ] **Global Search**
   ```bash
-  curl "http://localhost:8080/api/v1/search?q=test"
+  curl "http://localhost:9000/api/v1/search?q=test"
   ```
   Verify: Returns combined results
 
@@ -379,7 +379,7 @@ GET /api/v1/stats/prompts
 
 - [ ] **List Collections**
   ```bash
-  curl http://localhost:8080/api/v1/collections
+  curl http://localhost:9000/api/v1/collections
   ```
   Verify: Returns collections
 
@@ -404,13 +404,13 @@ GET /api/v1/stats/prompts
 
 - [ ] **Export Prompts (JSON)**
   ```bash
-  curl "http://localhost:8080/api/v1/export/prompts?format=json"
+  curl "http://localhost:9000/api/v1/export/prompts?format=json"
   ```
   Verify: Returns valid JSON
 
 - [ ] **Export Prompts (Markdown)**
   ```bash
-  curl "http://localhost:8080/api/v1/export/prompts?format=markdown"
+  curl "http://localhost:9000/api/v1/export/prompts?format=markdown"
   ```
   Verify: Returns Markdown format
 
@@ -418,19 +418,19 @@ GET /api/v1/stats/prompts
 
 - [ ] **Overall Stats**
   ```bash
-  curl http://localhost:8080/api/v1/stats
+  curl http://localhost:9000/api/v1/stats
   ```
   Verify: Returns correct counts
 
 - [ ] **Image Stats**
   ```bash
-  curl http://localhost:8080/api/v1/stats/images
+  curl http://localhost:9000/api/v1/stats/images
   ```
   Verify: Returns format distribution
 
 - [ ] **Prompt Stats**
   ```bash
-  curl http://localhost:8080/api/v1/stats/prompts
+  curl http://localhost:9000/api/v1/stats/prompts
   ```
   Verify: Returns unique prompt count
 
@@ -537,21 +537,21 @@ cargo build --release
 cargo run --release
 
 # 3. In another terminal, scan directory
-curl -X POST http://localhost:8080/api/v1/images/scan \
+curl -X POST http://localhost:9000/api/v1/images/scan \
   -H "Content-Type: application/json" \
   -d '{"path": "/path/to/images", "recursive": true}'
 
 # 4. Check stats
-curl http://localhost:8080/api/v1/stats
+curl http://localhost:9000/api/v1/stats
 
 # 5. List images
-curl http://localhost:8080/api/v1/images?page=1&limit=5
+curl http://localhost:9000/api/v1/images?page=1&limit=5
 
 # 6. Search prompts
-curl "http://localhost:8080/api/v1/prompts/search?q=test"
+curl "http://localhost:9000/api/v1/prompts/search?q=test"
 
 # 7. Open UI
-open http://localhost:8080
+open http://localhost:9000
 ```
 
 ## Getting Help

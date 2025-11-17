@@ -80,7 +80,7 @@ cargo run --release
 cargo run -- scan /path/to/images
 
 # Open browser
-open http://localhost:8080
+open http://localhost:9000
 ```
 
 **📖 See [USAGE_GUIDE.md](./USAGE_GUIDE.md) for complete usage instructions and testing guide.**

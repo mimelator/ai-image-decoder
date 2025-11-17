@@ -2,7 +2,7 @@
  * Test script to scan a specific directory
  */
 
-const SERVER_URL = process.env.SERVER_URL || 'http://localhost:8080';
+const SERVER_URL = process.env.SERVER_URL || 'http://localhost:9000';
 
 async function waitForServer() {
     const maxRetries = 30;

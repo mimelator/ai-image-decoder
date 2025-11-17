@@ -55,9 +55,9 @@ impl Config {
             server: ServerConfig {
                 host: env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string()),
                 port: env::var("PORT")
-                    .unwrap_or_else(|_| "8080".to_string())
+                    .unwrap_or_else(|_| "9000".to_string())
                     .parse()
-                    .unwrap_or(8080),
+                    .unwrap_or(9000),
             },
             database: DatabaseConfig {
                 database_path: env::var("DATABASE_PATH")

@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Kill any running ai-image-decoder servers on port 8080
+# Kill any running ai-image-decoder servers on port 9000
 
-PORT=${1:-8080}
+PORT=${1:-9000}
 
 echo "Checking for processes on port $PORT..."
 
