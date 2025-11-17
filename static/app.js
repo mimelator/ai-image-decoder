@@ -13,6 +13,12 @@ let imageFilters = {
     model: '',
     sampler: ''
 };
+let promptFilters = {
+    type: '',
+    dateFrom: '',
+    dateTo: '',
+    sortBy: 'created_at DESC'
+};
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -449,7 +455,20 @@ function displayImages(images) {
 async function loadPrompts(page = 1) {
     showLoading('prompts-list', 'Loading prompts...');
     try {
-        const data = await apiCall(`/prompts?page=${page}&limit=20`);
+        // Build query with filters
+        let query = `/prompts?page=${page}&limit=20&order_by=${encodeURIComponent(promptFilters.sortBy)}`;
+        
+        if (promptFilters.type) {
+            query += `&type=${encodeURIComponent(promptFilters.type)}`;
+        }
+        if (promptFilters.dateFrom) {
+            query += `&date_from=${encodeURIComponent(promptFilters.dateFrom)}`;
+        }
+        if (promptFilters.dateTo) {
+            query += `&date_to=${encodeURIComponent(promptFilters.dateTo)}`;
+        }
+        
+        const data = await apiCall(query);
         displayPrompts(data.prompts || []);
         displayPagination('prompts-pagination', page, data.pagination);
         currentPage.prompts = page;
@@ -458,6 +477,26 @@ async function loadPrompts(page = 1) {
         showToast('error', 'Failed to load prompts', error.message);
         document.getElementById('prompts-list').innerHTML = '<div class="loading">Failed to load prompts</div>';
     }
+}
+
+function applyPromptFilters() {
+    promptFilters.type = document.getElementById('filter-prompt-type').value;
+    promptFilters.dateFrom = document.getElementById('filter-prompt-date-from').value;
+    promptFilters.dateTo = document.getElementById('filter-prompt-date-to').value;
+    promptFilters.sortBy = document.getElementById('filter-prompt-sort').value;
+    loadPrompts(1);
+}
+
+function clearPromptFilters() {
+    promptFilters.type = '';
+    promptFilters.dateFrom = '';
+    promptFilters.dateTo = '';
+    promptFilters.sortBy = 'created_at DESC';
+    document.getElementById('filter-prompt-type').value = '';
+    document.getElementById('filter-prompt-date-from').value = '';
+    document.getElementById('filter-prompt-date-to').value = '';
+    document.getElementById('filter-prompt-sort').value = 'created_at DESC';
+    loadPrompts(1);
 }
 
 function displayPrompts(prompts) {
@@ -478,15 +517,22 @@ function displayPrompts(prompts) {
         return;
     }
     
-    list.innerHTML = positivePrompts.map(prompt => `
+    list.innerHTML = positivePrompts.map(prompt => {
+        const date = new Date(prompt.created_at);
+        const dateStr = date.toLocaleDateString();
+        const timeStr = date.toLocaleTimeString();
+        
+        return `
         <div class="prompt-card" onclick="showPromptDetail('${prompt.id}')">
             <div class="prompt-text">${escapeHtml(prompt.prompt_text)}</div>
             <div class="prompt-meta">
-                <span>Image ID: ${prompt.image_id.substring(0, 8)}...</span>
                 <span>Type: ${prompt.prompt_type}</span>
+                <span>Date: ${dateStr} ${timeStr}</span>
+                <span>Image ID: ${prompt.image_id.substring(0, 8)}...</span>
             </div>
         </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 // Search Functions

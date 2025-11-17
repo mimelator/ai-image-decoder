@@ -77,6 +77,37 @@
                     <button id="export-prompts-btn" class="btn-secondary" onclick="exportPrompts('json')">Export JSON</button>
                     <button id="export-prompts-md-btn" class="btn-secondary" onclick="exportPrompts('markdown')">Export MD</button>
                 </div>
+                <div class="advanced-filters" id="prompt-filters" style="margin-top: 1rem; padding: 1rem; background-color: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                        <div>
+                            <label for="filter-prompt-type" style="display: block; margin-bottom: 0.5rem; font-size: 0.9rem;">Type:</label>
+                            <select id="filter-prompt-type" class="select-input" onchange="applyPromptFilters()">
+                                <option value="">All Types</option>
+                                <option value="positive">Positive</option>
+                                <option value="negative">Negative</option>
+                                <option value="full">Full</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="filter-prompt-date-from" style="display: block; margin-bottom: 0.5rem; font-size: 0.9rem;">Date From:</label>
+                            <input type="date" id="filter-prompt-date-from" class="search-input" onchange="applyPromptFilters()">
+                        </div>
+                        <div>
+                            <label for="filter-prompt-date-to" style="display: block; margin-bottom: 0.5rem; font-size: 0.9rem;">Date To:</label>
+                            <input type="date" id="filter-prompt-date-to" class="search-input" onchange="applyPromptFilters()">
+                        </div>
+                        <div>
+                            <label for="filter-prompt-sort" style="display: block; margin-bottom: 0.5rem; font-size: 0.9rem;">Sort By:</label>
+                            <select id="filter-prompt-sort" class="select-input" onchange="applyPromptFilters()">
+                                <option value="created_at DESC">Newest First</option>
+                                <option value="created_at ASC">Oldest First</option>
+                                <option value="prompt_text ASC">Text A-Z</option>
+                                <option value="prompt_text DESC">Text Z-A</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button onclick="clearPromptFilters()" class="btn-secondary btn-small" style="margin-top: 1rem;">Clear Filters</button>
+                </div>
                 <div id="prompts-list" class="prompts-list">
                     <!-- Prompts will be loaded here -->
                 </div>

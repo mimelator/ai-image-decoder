@@ -13,15 +13,39 @@ pub async fn list_prompts(
         .get("limit")
         .and_then(|v| v.parse::<usize>().ok())
         .unwrap_or(50);
+    
+    // Get filter parameters
+    let prompt_type_filter = query.get("type").map(|s| s.as_str());
+    let date_from = query.get("date_from").map(|s| s.as_str());
+    let date_to = query.get("date_to").map(|s| s.as_str());
+    let order_by = query.get("order_by").map(|s| s.as_str()).unwrap_or("created_at DESC");
 
-    // Get all prompts (simplified for now)
-    match state.image_repo.list_all() {
-        Ok(images) => {
-            let mut all_prompts = Vec::new();
-            for image in images {
-                if let Ok(prompts) = state.prompt_repo.find_by_image_id(&image.id) {
-                    all_prompts.extend(prompts);
+    // Get all prompts ordered by most recent first
+    match state.prompt_repo.list_all(Some(order_by)) {
+        Ok(mut all_prompts) => {
+            // Apply filters
+            if let Some(type_filter) = prompt_type_filter {
+                if !type_filter.is_empty() {
+                    all_prompts.retain(|p| p.prompt_type == type_filter);
                 }
+            }
+            
+            // Filter by date range if provided
+            if let Some(from) = date_from {
+                if !from.is_empty() {
+                    all_prompts.retain(|p| p.created_at.as_str() >= from);
+                }
+            }
+            
+            if let Some(to) = date_to {
+                if !to.is_empty() {
+                    all_prompts.retain(|p| p.created_at.as_str() <= to);
+                }
+            }
+            
+            // Filter out negative prompts by default (unless explicitly requested)
+            if prompt_type_filter.is_none() || prompt_type_filter == Some("") {
+                all_prompts.retain(|p| p.prompt_type != "negative");
             }
 
             let total = all_prompts.len();

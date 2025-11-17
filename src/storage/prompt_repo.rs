@@ -49,6 +49,38 @@ impl PromptRepository {
         Ok(())
     }
 
+    pub fn list_all(&self, order_by: Option<&str>) -> anyhow::Result<Vec<Prompt>> {
+        let conn = self.db.get_connection();
+        let conn = conn.lock().unwrap();
+
+        let order_clause = order_by.unwrap_or("created_at DESC");
+        let query = format!(
+            "SELECT id, image_id, prompt_text, negative_prompt, prompt_type, created_at
+             FROM prompts ORDER BY {}",
+            order_clause
+        );
+
+        let mut stmt = conn.prepare(&query)?;
+
+        let prompts = stmt.query_map([], |row| {
+            Ok(Prompt {
+                id: row.get(0)?,
+                image_id: row.get(1)?,
+                prompt_text: row.get(2)?,
+                negative_prompt: row.get(3)?,
+                prompt_type: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })?;
+
+        let mut result = Vec::new();
+        for prompt in prompts {
+            result.push(prompt?);
+        }
+
+        Ok(result)
+    }
+
     pub fn find_by_image_id(&self, image_id: &str) -> anyhow::Result<Vec<Prompt>> {
         let conn = self.db.get_connection();
         let conn = conn.lock().unwrap();
