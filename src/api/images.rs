@@ -264,10 +264,12 @@ pub async fn scan_directory(
 ) -> Result<HttpResponse, actix_web::Error> {
     info!("Scan endpoint called: path={}, recursive={:?}", req.path, req.recursive);
     
-    let path = PathBuf::from(&req.path);
+    // Trim whitespace from path
+    let path_str = req.path.trim();
+    let path = PathBuf::from(path_str);
     let recursive = req.recursive.unwrap_or(true);
     
-    info!("Path validated: exists={}, is_dir={}", path.exists(), path.is_dir());
+    info!("Path validated: path='{}', exists={}, is_dir={}", path.display(), path.exists(), path.is_dir());
 
     if !path.exists() {
         return Ok(HttpResponse::BadRequest().json(serde_json::json!({
