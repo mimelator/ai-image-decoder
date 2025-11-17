@@ -23,6 +23,7 @@ let promptFilters = {
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     initializeTheme();
+    initializeNavigation();
     initializeTabs();
     initializeModals();
     loadStats();
@@ -64,19 +65,41 @@ function updateThemeIcon(mode) {
     }
 }
 
+// Navigation Management
+function initializeNavigation() {
+    // Listen for hash changes (browser back/forward)
+    window.addEventListener('hashchange', () => {
+        const hash = window.location.hash.substring(1); // Remove '#'
+        if (hash) {
+            switchTab(hash, false); // false = don't update URL (already updated)
+        }
+    });
+    
+    // Initialize tab from URL hash on page load
+    const hash = window.location.hash.substring(1);
+    if (hash && ['images', 'prompts', 'collections', 'tags', 'stats'].includes(hash)) {
+        switchTab(hash, false);
+    }
+}
+
 // Tab Management
 function initializeTabs() {
     const tabs = document.querySelectorAll('.nav-tab');
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
             const tabName = tab.dataset.tab;
-            switchTab(tabName);
+            switchTab(tabName, true); // true = update URL
         });
     });
 }
 
-function switchTab(tabName) {
+function switchTab(tabName, updateUrl = true) {
     currentTab = tabName;
+    
+    // Update URL hash if requested
+    if (updateUrl) {
+        window.history.pushState(null, '', `#${tabName}`);
+    }
     
     // Update tab buttons
     document.querySelectorAll('.nav-tab').forEach(tab => {
@@ -1004,7 +1027,7 @@ function filterByTag(tagName) {
     }
     
     // Navigate to Images tab to see filtered results
-    switchTab('images');
+    switchTab('images', true);
     
     // Update UI to show active filters
     updateTagFilterDisplay();
