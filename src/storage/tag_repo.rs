@@ -162,5 +162,91 @@ impl TagRepository {
 
         Ok(result)
     }
+
+    pub fn list_all(&self) -> anyhow::Result<Vec<Tag>> {
+        let conn = self.db.get_connection();
+        let conn = conn.lock().unwrap();
+
+        let mut stmt = conn.prepare(
+            "SELECT id, name, tag_type, created_at FROM tags ORDER BY name",
+        )?;
+
+        let tags = stmt.query_map([], |row| {
+            Ok(Tag {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                tag_type: row.get(2)?,
+                created_at: row.get(3)?,
+            })
+        })?;
+
+        let mut result = Vec::new();
+        for tag in tags {
+            result.push(tag?);
+        }
+
+        Ok(result)
+    }
+
+    pub fn find_by_id(&self, id: &str) -> anyhow::Result<Option<Tag>> {
+        let conn = self.db.get_connection();
+        let conn = conn.lock().unwrap();
+
+        let mut stmt = conn.prepare(
+            "SELECT id, name, tag_type, created_at FROM tags WHERE id = ?1",
+        )?;
+
+        let tag = stmt.query_row(params![id], |row| {
+            Ok(Tag {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                tag_type: row.get(2)?,
+                created_at: row.get(3)?,
+            })
+        });
+
+        match tag {
+            Ok(t) => Ok(Some(t)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn find_by_type(&self, tag_type: &str) -> anyhow::Result<Vec<Tag>> {
+        let conn = self.db.get_connection();
+        let conn = conn.lock().unwrap();
+
+        let mut stmt = conn.prepare(
+            "SELECT id, name, tag_type, created_at FROM tags WHERE tag_type = ?1 ORDER BY name",
+        )?;
+
+        let tags = stmt.query_map(params![tag_type], |row| {
+            Ok(Tag {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                tag_type: row.get(2)?,
+                created_at: row.get(3)?,
+            })
+        })?;
+
+        let mut result = Vec::new();
+        for tag in tags {
+            result.push(tag?);
+        }
+
+        Ok(result)
+    }
+
+    pub fn remove_from_image(&self, image_id: &str, tag_id: &str) -> anyhow::Result<()> {
+        let conn = self.db.get_connection();
+        let conn = conn.lock().unwrap();
+
+        conn.execute(
+            "DELETE FROM image_tags WHERE image_id = ?1 AND tag_id = ?2",
+            params![image_id, tag_id],
+        )?;
+
+        Ok(())
+    }
 }
 

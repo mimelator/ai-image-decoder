@@ -6,11 +6,13 @@
   "scripts": {
     "test": "node test-ui.js",
     "test:playwright": "node test-ui-playwright.js",
+    "test:features": "node test-ui-features-playwright.js",
     "test:all": "node test-ui.js",
     "test:images": "node test-ui.js --tab=images",
     "test:prompts": "node test-ui.js --tab=prompts",
     "test:detailed": "node test-ui.js --report=detailed",
-    "test:visible": "node test-ui.js --headless=false"
+    "test:visible": "node test-ui.js --headless=false",
+    "test:features:visible": "node test-ui-features-playwright.js --headless=false"
   },
   "dependencies": {
     "playwright": "^1.56.1",

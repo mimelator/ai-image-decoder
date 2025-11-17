@@ -115,5 +115,67 @@ impl CollectionRepository {
 
         Ok(result)
     }
+
+    pub fn find_by_id(&self, id: &str) -> anyhow::Result<Option<Collection>> {
+        let conn = self.db.get_connection();
+        let conn = conn.lock().unwrap();
+
+        let mut stmt = conn.prepare(
+            "SELECT id, name, description, folder_path, is_folder_based, created_at, updated_at
+             FROM collections WHERE id = ?1",
+        )?;
+
+        let collection = stmt.query_row(params![id], |row| {
+            Ok(Collection {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                description: row.get(2)?,
+                folder_path: row.get(3)?,
+                is_folder_based: row.get::<_, i32>(4)? != 0,
+                created_at: row.get(5)?,
+                updated_at: row.get(6)?,
+            })
+        });
+
+        match collection {
+            Ok(col) => Ok(Some(col)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn update(&self, collection: &Collection) -> anyhow::Result<()> {
+        let conn = self.db.get_connection();
+        let conn = conn.lock().unwrap();
+        let now = Utc::now().to_rfc3339();
+
+        conn.execute(
+            "UPDATE collections SET name = ?1, description = ?2, updated_at = ?3 WHERE id = ?4",
+            params![collection.name, collection.description, now, collection.id],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn delete(&self, id: &str) -> anyhow::Result<()> {
+        let conn = self.db.get_connection();
+        let conn = conn.lock().unwrap();
+
+        conn.execute("DELETE FROM collections WHERE id = ?1", params![id])?;
+
+        Ok(())
+    }
+
+    pub fn remove_image(&self, collection_id: &str, image_id: &str) -> anyhow::Result<()> {
+        let conn = self.db.get_connection();
+        let conn = conn.lock().unwrap();
+
+        conn.execute(
+            "DELETE FROM collection_images WHERE collection_id = ?1 AND image_id = ?2",
+            params![collection_id, image_id],
+        )?;
+
+        Ok(())
+    }
 }
 

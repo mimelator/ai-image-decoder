@@ -7,3 +7,10 @@ data/
 *.env.local
 test-reports/
 node_modules/
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes

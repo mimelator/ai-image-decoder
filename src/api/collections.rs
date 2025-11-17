@@ -63,10 +63,15 @@ pub async fn get_collection(
 ) -> impl Responder {
     let id = path.into_inner();
 
-    // TODO: Add find_by_id to collection_repo
-    HttpResponse::NotImplemented().json(serde_json::json!({
-        "error": "Get collection by ID not yet implemented"
-    }))
+    match state.collection_repo.find_by_id(&id) {
+        Ok(Some(collection)) => HttpResponse::Ok().json(collection),
+        Ok(None) => HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Collection not found"
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": format!("Failed to get collection: {}", e)
+        })),
+    }
 }
 
 pub async fn update_collection(
@@ -74,20 +79,68 @@ pub async fn update_collection(
     path: web::Path<String>,
     req: web::Json<UpdateCollectionRequest>,
 ) -> impl Responder {
-    // TODO: Implement update
-    HttpResponse::NotImplemented().json(serde_json::json!({
-        "error": "Update collection not yet implemented"
-    }))
+    let id = path.into_inner();
+
+    // Get existing collection
+    let existing = match state.collection_repo.find_by_id(&id) {
+        Ok(Some(col)) => col,
+        Ok(None) => {
+            return HttpResponse::NotFound().json(serde_json::json!({
+                "error": "Collection not found"
+            }));
+        }
+        Err(e) => {
+            return HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": format!("Failed to get collection: {}", e)
+            }));
+        }
+    };
+
+    // Update collection with new values
+    let updated = Collection {
+        id: existing.id.clone(),
+        name: req.name.clone().unwrap_or(existing.name),
+        description: req.description.clone().or(existing.description),
+        folder_path: existing.folder_path.clone(), // Don't allow changing folder_path
+        is_folder_based: existing.is_folder_based, // Don't allow changing is_folder_based
+        created_at: existing.created_at.clone(),
+        updated_at: Utc::now().to_rfc3339(),
+    };
+
+    match state.collection_repo.update(&updated) {
+        Ok(_) => HttpResponse::Ok().json(updated),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": format!("Failed to update collection: {}", e)
+        })),
+    }
 }
 
 pub async fn delete_collection(
     state: web::Data<ApiState>,
     path: web::Path<String>,
 ) -> impl Responder {
-    // TODO: Implement delete
-    HttpResponse::NotImplemented().json(serde_json::json!({
-        "error": "Delete collection not yet implemented"
-    }))
+    let id = path.into_inner();
+
+    // Check if collection exists
+    match state.collection_repo.find_by_id(&id) {
+        Ok(Some(_)) => {
+            match state.collection_repo.delete(&id) {
+                Ok(_) => HttpResponse::Ok().json(serde_json::json!({
+                    "success": true,
+                    "message": "Collection deleted"
+                })),
+                Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
+                    "error": format!("Failed to delete collection: {}", e)
+                })),
+            }
+        }
+        Ok(None) => HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Collection not found"
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": format!("Failed to check collection: {}", e)
+        })),
+    }
 }
 
 pub async fn add_image_to_collection(
@@ -120,10 +173,17 @@ pub async fn remove_image_from_collection(
     state: web::Data<ApiState>,
     path: web::Path<(String, String)>,
 ) -> impl Responder {
-    // TODO: Implement remove
-    HttpResponse::NotImplemented().json(serde_json::json!({
-        "error": "Remove image from collection not yet implemented"
-    }))
+    let (collection_id, image_id) = path.into_inner();
+
+    match state.collection_repo.remove_image(&collection_id, &image_id) {
+        Ok(_) => HttpResponse::Ok().json(serde_json::json!({
+            "success": true,
+            "message": "Image removed from collection"
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": format!("Failed to remove image from collection: {}", e)
+        })),
+    }
 }
 
 pub async fn create_collection_from_folder(

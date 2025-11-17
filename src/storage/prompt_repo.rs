@@ -107,5 +107,32 @@ impl PromptRepository {
 
         Ok(result)
     }
+
+    pub fn find_by_id(&self, id: &str) -> anyhow::Result<Option<Prompt>> {
+        let conn = self.db.get_connection();
+        let conn = conn.lock().unwrap();
+
+        let mut stmt = conn.prepare(
+            "SELECT id, image_id, prompt_text, negative_prompt, prompt_type, created_at
+             FROM prompts WHERE id = ?1",
+        )?;
+
+        let prompt = stmt.query_row(params![id], |row| {
+            Ok(Prompt {
+                id: row.get(0)?,
+                image_id: row.get(1)?,
+                prompt_text: row.get(2)?,
+                negative_prompt: row.get(3)?,
+                prompt_type: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        });
+
+        match prompt {
+            Ok(p) => Ok(Some(p)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
 }
 

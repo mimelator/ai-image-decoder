@@ -51,10 +51,15 @@ pub async fn get_prompt(
 ) -> impl Responder {
     let id = path.into_inner();
 
-    // TODO: Add find_by_id to prompt_repo
-    HttpResponse::NotImplemented().json(serde_json::json!({
-        "error": "Get prompt by ID not yet implemented"
-    }))
+    match state.prompt_repo.find_by_id(&id) {
+        Ok(Some(prompt)) => HttpResponse::Ok().json(prompt),
+        Ok(None) => HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Prompt not found"
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": format!("Failed to get prompt: {}", e)
+        })),
+    }
 }
 
 pub async fn search_prompts(

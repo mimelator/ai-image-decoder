@@ -162,5 +162,14 @@ impl ImageRepository {
 
         Ok(result)
     }
+
+    pub fn delete(&self, id: &str) -> anyhow::Result<()> {
+        let conn = self.db.get_connection();
+        let conn = conn.lock().unwrap();
+
+        conn.execute("DELETE FROM images WHERE id = ?1", params![id])?;
+
+        Ok(())
+    }
 }
 

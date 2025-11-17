@@ -14,20 +14,32 @@ pub async fn list_tags(
     state: web::Data<ApiState>,
     query: web::Query<std::collections::HashMap<String, String>>,
 ) -> impl Responder {
-    // TODO: Add list_all to tag_repo
-    HttpResponse::NotImplemented().json(serde_json::json!({
-        "error": "List tags not yet implemented"
-    }))
+    match state.tag_repo.list_all() {
+        Ok(tags) => HttpResponse::Ok().json(serde_json::json!({
+            "tags": tags,
+            "total": tags.len()
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": format!("Failed to list tags: {}", e)
+        })),
+    }
 }
 
 pub async fn get_tag(
     state: web::Data<ApiState>,
     path: web::Path<String>,
 ) -> impl Responder {
-    // TODO: Add find_by_id to tag_repo
-    HttpResponse::NotImplemented().json(serde_json::json!({
-        "error": "Get tag by ID not yet implemented"
-    }))
+    let id = path.into_inner();
+
+    match state.tag_repo.find_by_id(&id) {
+        Ok(Some(tag)) => HttpResponse::Ok().json(tag),
+        Ok(None) => HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Tag not found"
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": format!("Failed to get tag: {}", e)
+        })),
+    }
 }
 
 pub async fn get_tags_for_image(
@@ -53,10 +65,18 @@ pub async fn get_tags_by_type(
     state: web::Data<ApiState>,
     path: web::Path<String>,
 ) -> impl Responder {
-    // TODO: Add get_by_type to tag_repo
-    HttpResponse::NotImplemented().json(serde_json::json!({
-        "error": "Get tags by type not yet implemented"
-    }))
+    let tag_type = path.into_inner();
+
+    match state.tag_repo.find_by_type(&tag_type) {
+        Ok(tags) => HttpResponse::Ok().json(serde_json::json!({
+            "tags": tags,
+            "type": tag_type,
+            "total": tags.len()
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": format!("Failed to get tags by type: {}", e)
+        })),
+    }
 }
 
 pub async fn add_tag_to_image(
@@ -97,9 +117,16 @@ pub async fn remove_tag_from_image(
     state: web::Data<ApiState>,
     path: web::Path<(String, String)>,
 ) -> impl Responder {
-    // TODO: Implement remove tag
-    HttpResponse::NotImplemented().json(serde_json::json!({
-        "error": "Remove tag not yet implemented"
-    }))
+    let (image_id, tag_id) = path.into_inner();
+
+    match state.tag_repo.remove_from_image(&image_id, &tag_id) {
+        Ok(_) => HttpResponse::Ok().json(serde_json::json!({
+            "success": true,
+            "message": "Tag removed from image"
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": format!("Failed to remove tag: {}", e)
+        })),
+    }
 }
 
