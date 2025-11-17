@@ -271,13 +271,11 @@ function displayImages(images) {
     }
     
     grid.innerHTML = images.map(image => {
-        // Try to load image via API endpoint, fallback to placeholder
+        // Try to load thumbnail first, fallback to full image, then placeholder
         let thumbnailContent = '';
         if (image.file_path) {
-            // Encode the file path for URL
-            const encodedPath = encodeURIComponent(image.file_path);
-            // Use a proxy endpoint to serve the image
-            thumbnailContent = `<img src="/api/v1/images/${image.id}/file" alt="${escapeHtml(image.file_name)}" onerror="this.parentElement.innerHTML='<div class=\\'image-placeholder\\'>${image.width && image.height ? image.width + '×' + image.height : 'Image'}</div>'" style="max-width: 100%; max-height: 200px; object-fit: contain; width: 100%; height: 200px;">`;
+            // Use thumbnail endpoint first (faster), fallback to full image
+            thumbnailContent = `<img src="/api/v1/images/${image.id}/thumbnail" alt="${escapeHtml(image.file_name)}" onerror="this.onerror=null; this.src='/api/v1/images/${image.id}/file'; this.onerror=function(){this.parentElement.innerHTML='<div class=\\'image-placeholder\\'>${image.width && image.height ? image.width + '×' + image.height : 'Image'}</div>';}" style="max-width: 100%; max-height: 200px; object-fit: contain; width: 100%; height: 200px;">`;
         } else {
             thumbnailContent = `<div class="image-placeholder">${image.width && image.height ? `${image.width}×${image.height}` : 'No image'}</div>`;
         }

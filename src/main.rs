@@ -32,7 +32,7 @@ async fn main() -> anyhow::Result<()> {
         // Initialize database
         let db = Database::new(&config.database)
             .map_err(|e| anyhow::anyhow!("Database error: {}", e))?;
-        let service = IngestionService::new(db);
+        let service = IngestionService::with_config(db, &config);
 
         // Scan directory
         let progress = service.scan_directory(scan_dir, true)

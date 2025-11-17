@@ -4,8 +4,9 @@ use crate::storage::{
     Database, ImageRepository, PromptRepository, MetadataRepository,
     CollectionRepository, TagRepository,
 };
-use crate::utils::calculate_file_hash;
+use crate::utils::{calculate_file_hash, thumbnail};
 use crate::extraction::tag_extractor::TagExtractor;
+use crate::config::Config;
 use chrono::Utc;
 use image::{open, GenericImageView};
 use std::path::{Path, PathBuf};
@@ -20,6 +21,15 @@ pub struct IngestionService {
     metadata_repo: MetadataRepository,
     collection_repo: CollectionRepository,
     tag_repo: TagRepository,
+    thumbnail_config: Option<ThumbnailConfig>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ThumbnailConfig {
+    pub enabled: bool,
+    pub thumbnail_path: PathBuf,
+    pub max_size: u32,
+    pub quality: u8,
 }
 
 #[derive(Debug, Clone)]
@@ -40,6 +50,30 @@ impl IngestionService {
             collection_repo: CollectionRepository::new(db.clone()),
             tag_repo: TagRepository::new(db.clone()),
             db,
+            thumbnail_config: None,
+        }
+    }
+
+    pub fn with_config(db: Database, config: &Config) -> Self {
+        let thumbnail_config = if config.thumbnail.enabled {
+            Some(ThumbnailConfig {
+                enabled: true,
+                thumbnail_path: PathBuf::from(&config.storage.thumbnail_path),
+                max_size: config.thumbnail.size,
+                quality: config.thumbnail.quality,
+            })
+        } else {
+            None
+        };
+
+        IngestionService {
+            image_repo: ImageRepository::new(db.clone()),
+            prompt_repo: PromptRepository::new(db.clone()),
+            metadata_repo: MetadataRepository::new(db.clone()),
+            collection_repo: CollectionRepository::new(db.clone()),
+            tag_repo: TagRepository::new(db.clone()),
+            db,
+            thumbnail_config,
         }
     }
 
@@ -56,9 +90,12 @@ impl IngestionService {
         let image_files = scanner.scan()?;
 
         info!("Found {} image files", image_files.len());
+        info!("Starting processing...");
 
         // Create collections from folder structure
+        info!("Creating folder-based collections...");
         self.create_folder_collections(root_path, &image_files)?;
+        info!("Collections created, starting image processing...");
 
         // Process each image
         let mut progress = ScanProgress {
@@ -69,25 +106,96 @@ impl IngestionService {
             current_file: None,
         };
 
-        for file_path in &image_files {
+        for (index, file_path) in image_files.iter().enumerate() {
             progress.current_file = Some(file_path.display().to_string());
             
+            let current = index + 1;
+            let remaining = progress.total_files - current;
+            let percent = current as f64 / progress.total_files as f64 * 100.0;
+            
+            // Determine logging frequency based on total files
+            let log_interval = if progress.total_files > 10000 {
+                1000  // Log every 1000 for very large scans
+            } else if progress.total_files > 1000 {
+                100   // Log every 100 for large scans
+            } else {
+                10    // Log every 10 for smaller scans
+            };
+            
+            // Check if we're at a 10% milestone
+            let prev_percent = ((current - 1) as f64 / progress.total_files as f64 * 100.0) as u32;
+            let curr_percent_int = percent as u32;
+            let at_milestone = prev_percent / 10 != curr_percent_int / 10;
+            
+            let should_log = current % log_interval == 0 
+                || current == 1 
+                || current == progress.total_files
+                || at_milestone; // Log at 10% milestones (10%, 20%, 30%, etc.)
+            
             match self.process_image(file_path) {
-                Ok(true) => progress.processed += 1,
-                Ok(false) => progress.skipped += 1,
+                Ok(true) => {
+                    progress.processed += 1;
+                    if should_log {
+                        info!(
+                            "[{}/{}] ({:.1}%) Processed: {} | Remaining: {} | Errors: {} | Skipped: {}",
+                            current,
+                            progress.total_files,
+                            percent,
+                            progress.processed,
+                            remaining,
+                            progress.errors,
+                            progress.skipped
+                        );
+                    }
+                }
+                Ok(false) => {
+                    progress.skipped += 1;
+                    if should_log {
+                        info!(
+                            "[{}/{}] ({:.1}%) Skipped: {} | Processed: {} | Remaining: {} | Errors: {}",
+                            current,
+                            progress.total_files,
+                            percent,
+                            progress.skipped,
+                            progress.processed,
+                            remaining,
+                            progress.errors
+                        );
+                    }
+                }
                 Err(e) => {
                     warn!("Error processing {}: {}", file_path.display(), e);
                     progress.errors += 1;
+                    // Always log errors
+                    info!(
+                        "[{}/{}] ({:.1}%) ERROR processing: {} | Processed: {} | Remaining: {} | Errors: {}",
+                        current,
+                        progress.total_files,
+                        percent,
+                        file_path.file_name().and_then(|n| n.to_str()).unwrap_or("unknown"),
+                        progress.processed,
+                        remaining,
+                        progress.errors
+                    );
                 }
-            }
-
-            if progress.processed % 100 == 0 {
-                info!("Processed {}/{} images", progress.processed, progress.total_files);
             }
         }
 
-        info!("Scan complete: {} processed, {} skipped, {} errors", 
-              progress.processed, progress.skipped, progress.errors);
+        info!("");
+        info!("========================================");
+        info!("Scan Complete!");
+        info!("========================================");
+        info!("Total files:     {}", progress.total_files);
+        info!("Processed:       {} ({:.1}%)", 
+              progress.processed, 
+              (progress.processed as f64 / progress.total_files as f64 * 100.0));
+        info!("Skipped:        {} ({:.1}%)", 
+              progress.skipped,
+              (progress.skipped as f64 / progress.total_files as f64 * 100.0));
+        info!("Errors:          {} ({:.1}%)", 
+              progress.errors,
+              (progress.errors as f64 / progress.total_files as f64 * 100.0));
+        info!("========================================");
 
         Ok(progress)
     }
@@ -143,6 +251,13 @@ impl IngestionService {
         };
 
         self.image_repo.create(&image)?;
+
+        // Generate thumbnail if enabled
+        if let Some(ref thumb_config) = self.thumbnail_config {
+            if thumb_config.enabled {
+                self.generate_thumbnail_if_needed(file_path, &thumb_config)?;
+            }
+        }
 
         // Store prompts
         if let Some(prompt_text) = extracted.prompt {
@@ -233,6 +348,33 @@ impl IngestionService {
         }
     }
 
+    fn generate_thumbnail_if_needed(
+        &self,
+        image_path: &Path,
+        thumb_config: &ThumbnailConfig,
+    ) -> anyhow::Result<()> {
+        let thumbnail_path = thumbnail::get_thumbnail_path(image_path, &thumb_config.thumbnail_path);
+        
+        // Check if thumbnail already exists and is valid
+        if thumbnail::thumbnail_exists_and_valid(&thumbnail_path, image_path) {
+            return Ok(()); // Thumbnail already exists and is up to date
+        }
+
+        // Generate thumbnail
+        match thumbnail::generate_thumbnail(
+            image_path,
+            &thumbnail_path,
+            thumb_config.max_size,
+            thumb_config.quality,
+        ) {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                warn!("Failed to generate thumbnail for {}: {}", image_path.display(), e);
+                Ok(()) // Don't fail ingestion if thumbnail generation fails
+            }
+        }
+    }
+
     fn create_folder_collections(
         &self,
         root_path: &Path,
@@ -249,7 +391,11 @@ impl IngestionService {
             }
         }
 
-        info!("Creating {} folder-based collections", folder_paths.len());
+        if folder_paths.is_empty() {
+            info!("No subfolders found - images will be in root collection");
+        } else {
+            info!("Creating {} folder-based collections from subfolders...", folder_paths.len());
+        }
 
         // Create collection for each folder
         for folder_path in folder_paths {

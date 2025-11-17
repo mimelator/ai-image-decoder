@@ -79,14 +79,75 @@ pub async fn get_thumbnail(
     state: web::Data<ApiState>,
     path: web::Path<String>,
 ) -> impl Responder {
+    use actix_web::http::header::{ContentType, ContentDisposition, DispositionType};
+    use std::fs;
+    use crate::utils::thumbnail;
+    
     let id = path.into_inner();
 
     match state.image_repo.find_by_id(&id) {
         Ok(Some(image)) => {
-            // TODO: Implement thumbnail generation in Phase 6
-            HttpResponse::NotImplemented().json(serde_json::json!({
-                "error": "Thumbnail generation not yet implemented"
-            }))
+            let image_path = std::path::Path::new(&image.file_path);
+            
+            // Try to find thumbnail (default location: ./data/thumbnails/)
+            let thumbnail_base = std::path::Path::new("./data/thumbnails");
+            let thumbnail_path = thumbnail::get_thumbnail_path(image_path, thumbnail_base);
+            
+            // Check if thumbnail exists
+            if thumbnail_path.exists() {
+                match fs::read(&thumbnail_path) {
+                    Ok(file_data) => {
+                        // Determine content type from thumbnail extension
+                        let content_type = match thumbnail_path.extension().and_then(|s| s.to_str()) {
+                            Some("png") => "image/png",
+                            Some("jpg") | Some("jpeg") => "image/jpeg",
+                            Some("webp") => "image/webp",
+                            _ => "image/jpeg", // Default
+                        };
+                        
+                        HttpResponse::Ok()
+                            .content_type(ContentType(content_type.parse().unwrap()))
+                            .insert_header(ContentDisposition {
+                                disposition: DispositionType::Inline,
+                                parameters: vec![],
+                            })
+                            .body(file_data)
+                    }
+                    Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
+                        "error": format!("Failed to read thumbnail: {}", e)
+                    })),
+                }
+            } else {
+                // Thumbnail doesn't exist, return full image as fallback
+                // (or could return 404, but returning full image is more user-friendly)
+                if image_path.exists() {
+                    match fs::read(image_path) {
+                        Ok(file_data) => {
+                            let content_type = match image.format.to_lowercase().as_str() {
+                                "png" => "image/png",
+                                "jpg" | "jpeg" => "image/jpeg",
+                                "webp" => "image/webp",
+                                _ => "application/octet-stream",
+                            };
+                            
+                            HttpResponse::Ok()
+                                .content_type(ContentType(content_type.parse().unwrap()))
+                                .insert_header(ContentDisposition {
+                                    disposition: DispositionType::Inline,
+                                    parameters: vec![],
+                                })
+                                .body(file_data)
+                        }
+                        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
+                            "error": format!("Failed to read image: {}", e)
+                        })),
+                    }
+                } else {
+                    HttpResponse::NotFound().json(serde_json::json!({
+                        "error": "Thumbnail not found and source image not available"
+                    }))
+                }
+            }
         }
         Ok(None) => HttpResponse::NotFound().json(serde_json::json!({
             "error": "Image not found"

@@ -38,8 +38,8 @@ pub async fn start_server(config: Config) -> std::io::Result<()> {
     let collection_repo = CollectionRepository::new(db.clone());
     let tag_repo = TagRepository::new(db.clone());
     
-    // Initialize ingestion service (for scan endpoint)
-    let ingestion_service = Arc::new(IngestionService::new(db.clone()));
+    // Initialize ingestion service (for scan endpoint) with config for thumbnail generation
+    let ingestion_service = Arc::new(IngestionService::with_config(db.clone(), &config));
     
     // Create API state
     let api_state = web::Data::new(ApiState {
