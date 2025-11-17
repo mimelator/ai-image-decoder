@@ -39,7 +39,7 @@ pub async fn start_server(config: Config) -> std::io::Result<()> {
     let tag_repo = TagRepository::new(db.clone());
     
     // Initialize ingestion service (for scan endpoint) with config for thumbnail generation
-    let ingestion_service = Arc::new(IngestionService::with_config(db.clone(), &config));
+    let ingestion_service = IngestionService::with_config(db.clone(), &config);
     
     // Create API state
     let api_state = web::Data::new(ApiState {
@@ -52,7 +52,8 @@ pub async fn start_server(config: Config) -> std::io::Result<()> {
     });
     
     // Create ingestion service state for scan endpoint
-    let ingestion_state = web::Data::from(ingestion_service);
+    // web::Data wraps in Arc internally, so we pass the service directly
+    let ingestion_state = web::Data::new(ingestion_service);
 
     log::info!("Starting server on {}:{}", config.server.host, config.server.port);
 
@@ -66,7 +67,10 @@ pub async fn start_server(config: Config) -> std::io::Result<()> {
         App::new()
             .app_data(api_state.clone())
             .wrap(cors)
-            .wrap(actix_web::middleware::Logger::default())
+            .wrap(
+                actix_web::middleware::Logger::default()
+                    .exclude_regex(r"/api/v1/images/scan/status")
+            ) // Exclude frequent polling endpoint from logs
             // Health check
             .route("/health", web::get().to(health))
             // Version

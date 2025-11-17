@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 use log::{info, warn};
 
+#[derive(Clone)]
 pub struct IngestionService {
     #[allow(dead_code)]
     db: Database,
@@ -82,6 +83,19 @@ impl IngestionService {
         root_path: P,
         recursive: bool,
     ) -> anyhow::Result<ScanProgress> {
+        self.scan_directory_with_callback(root_path, recursive, None::<fn(&ScanProgress)>)
+    }
+
+    pub fn scan_directory_with_callback<P, F>(
+        &self,
+        root_path: P,
+        recursive: bool,
+        mut progress_callback: Option<F>,
+    ) -> anyhow::Result<ScanProgress>
+    where
+        P: AsRef<Path>,
+        F: FnMut(&ScanProgress),
+    {
         let root_path = root_path.as_ref();
         info!("Starting scan of directory: {}", root_path.display());
 
@@ -105,6 +119,11 @@ impl IngestionService {
             errors: 0,
             current_file: None,
         };
+
+        // Initial progress update
+        if let Some(ref mut callback) = progress_callback {
+            callback(&progress);
+        }
 
         for (index, file_path) in image_files.iter().enumerate() {
             progress.current_file = Some(file_path.display().to_string());
@@ -178,6 +197,11 @@ impl IngestionService {
                         progress.errors
                     );
                 }
+            }
+            
+            // Update progress via callback if provided
+            if let Some(ref mut callback) = progress_callback {
+                callback(&progress);
             }
         }
 
@@ -382,20 +406,20 @@ impl IngestionService {
     ) -> anyhow::Result<()> {
         let mut folder_paths = std::collections::HashSet::new();
 
-        // Collect all unique folder paths
+        // Collect all unique folder paths (including root if images are directly in it)
         for file_path in image_files {
             if let Some(parent) = file_path.parent() {
-                if parent != root_path {
-                    folder_paths.insert(parent.to_path_buf());
-                }
+                // Include the parent folder (could be root_path or a subfolder)
+                folder_paths.insert(parent.to_path_buf());
             }
         }
 
         if folder_paths.is_empty() {
-            info!("No subfolders found - images will be in root collection");
-        } else {
-            info!("Creating {} folder-based collections from subfolders...", folder_paths.len());
+            info!("No folders found");
+            return Ok(());
         }
+
+        info!("Creating {} folder-based collections...", folder_paths.len());
 
         // Create collection for each folder
         for folder_path in folder_paths {
@@ -406,8 +430,17 @@ impl IngestionService {
                 .to_string();
 
             // Check if collection already exists
-            if self.collection_repo.find_by_folder_path(folder_path.to_str().unwrap()).is_ok() {
-                continue; // Collection already exists
+            match self.collection_repo.find_by_folder_path(folder_path.to_str().unwrap()) {
+                Ok(Some(_)) => {
+                    continue; // Collection already exists
+                }
+                Ok(None) => {
+                    // Collection doesn't exist, create it
+                }
+                Err(e) => {
+                    warn!("Error checking for existing collection: {}", e);
+                    // Continue to create anyway
+                }
             }
 
             let collection_id = Uuid::new_v4().to_string();
@@ -431,8 +464,18 @@ impl IngestionService {
 
     fn assign_to_folder_collection(&self, file_path: &Path, image_id: &str) -> anyhow::Result<()> {
         if let Some(parent) = file_path.parent() {
-            if let Some(collection) = self.collection_repo.find_by_folder_path(parent.to_str().unwrap())? {
-                self.collection_repo.add_image(&collection.id, image_id)?;
+            match self.collection_repo.find_by_folder_path(parent.to_str().unwrap()) {
+                Ok(Some(collection)) => {
+                    self.collection_repo.add_image(&collection.id, image_id)?;
+                }
+                Ok(None) => {
+                    // Collection doesn't exist - this shouldn't happen if create_folder_collections ran first
+                    // But handle gracefully
+                    warn!("Collection not found for folder: {}", parent.display());
+                }
+                Err(e) => {
+                    warn!("Error finding collection for folder {}: {}", parent.display(), e);
+                }
             }
         }
         Ok(())

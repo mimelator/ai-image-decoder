@@ -206,6 +206,62 @@ function setupEventListeners() {
     }
 }
 
+// Toast Notifications
+function showToast(type, title, message, duration = 5000) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    const icons = {
+        success: '✅',
+        error: '❌',
+        warning: '⚠️',
+        info: 'ℹ️'
+    };
+    
+    toast.innerHTML = `
+        <span class="toast-icon">${icons[type] || icons.info}</span>
+        <div class="toast-content">
+            <div class="toast-title">${escapeHtml(title)}</div>
+            ${message ? `<div class="toast-message">${escapeHtml(message)}</div>` : ''}
+        </div>
+        <button class="toast-close" onclick="this.parentElement.remove()">&times;</button>
+    `;
+    
+    container.appendChild(toast);
+    
+    // Auto-remove after duration
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.style.animation = 'slideIn 0.3s ease-out reverse';
+            setTimeout(() => toast.remove(), 300);
+        }
+    }, duration);
+}
+
+// Loading States
+function showLoading(containerId, message = 'Loading...') {
+    const container = document.getElementById(containerId);
+    if (container) {
+        container.innerHTML = `
+            <div class="loading-overlay">
+                <div class="spinner"></div>
+                <span>${escapeHtml(message)}</span>
+            </div>
+        `;
+    }
+}
+
+function hideLoading(containerId) {
+    const container = document.getElementById(containerId);
+    if (container && container.querySelector('.loading-overlay')) {
+        // Don't clear if there's already content
+        return;
+    }
+}
+
 // API Calls
 async function apiCall(endpoint, options = {}) {
     try {
@@ -218,7 +274,9 @@ async function apiCall(endpoint, options = {}) {
         });
         
         if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
+            const errorData = await response.json().catch(() => ({}));
+            const errorMessage = errorData.error || `API error: ${response.status}`;
+            throw new Error(errorMessage);
         }
         
         return await response.json();
@@ -252,6 +310,7 @@ async function loadStats() {
 
 // Load Images
 async function loadImages(page = 1) {
+    showLoading('images-grid', 'Loading images...');
     try {
         const data = await apiCall(`/images?page=${page}&limit=24`);
         displayImages(data.images || []);
@@ -259,6 +318,7 @@ async function loadImages(page = 1) {
         currentPage.images = page;
     } catch (error) {
         console.error('Failed to load images:', error);
+        showToast('error', 'Failed to load images', error.message);
         document.getElementById('images-grid').innerHTML = '<div class="loading">Failed to load images</div>';
     }
 }
@@ -298,6 +358,7 @@ function displayImages(images) {
 
 // Load Prompts
 async function loadPrompts(page = 1) {
+    showLoading('prompts-list', 'Loading prompts...');
     try {
         const data = await apiCall(`/prompts?page=${page}&limit=20`);
         displayPrompts(data.prompts || []);
@@ -305,6 +366,7 @@ async function loadPrompts(page = 1) {
         currentPage.prompts = page;
     } catch (error) {
         console.error('Failed to load prompts:', error);
+        showToast('error', 'Failed to load prompts', error.message);
         document.getElementById('prompts-list').innerHTML = '<div class="loading">Failed to load prompts</div>';
     }
 }
@@ -339,11 +401,17 @@ async function searchImages(query) {
         return;
     }
     
+    showLoading('images-grid', 'Searching images...');
     try {
         const data = await apiCall(`/search/images?q=${encodeURIComponent(query)}`);
         displayImages(data.images || []);
+        if (data.images && data.images.length === 0) {
+            showToast('info', 'No results', 'No images found matching your search');
+        }
     } catch (error) {
         console.error('Search failed:', error);
+        showToast('error', 'Search failed', error.message);
+        document.getElementById('images-grid').innerHTML = '<div class="loading">Search failed</div>';
     }
 }
 
@@ -353,21 +421,29 @@ async function searchPrompts(query) {
         return;
     }
     
+    showLoading('prompts-list', 'Searching prompts...');
     try {
         const data = await apiCall(`/prompts/search?q=${encodeURIComponent(query)}`);
         displayPrompts(data.prompts || []);
+        if (data.prompts && data.prompts.length === 0) {
+            showToast('info', 'No results', 'No prompts found matching your search');
+        }
     } catch (error) {
         console.error('Search failed:', error);
+        showToast('error', 'Search failed', error.message);
+        document.getElementById('prompts-list').innerHTML = '<div class="loading">Search failed</div>';
     }
 }
 
 // Load Collections
 async function loadCollections() {
+    showLoading('collections-list', 'Loading collections...');
     try {
         const data = await apiCall('/collections');
         displayCollections(data.collections || []);
     } catch (error) {
         console.error('Failed to load collections:', error);
+        showToast('error', 'Failed to load collections', error.message);
         document.getElementById('collections-list').innerHTML = '<div class="loading">Failed to load collections</div>';
     }
 }
@@ -379,17 +455,28 @@ function displayCollections(collections) {
         return;
     }
     
-    list.innerHTML = collections.map(collection => `
+    list.innerHTML = collections.map(collection => {
+        // Truncate long folder paths for display
+        const folderPath = collection.folder_path || '';
+        const displayPath = folderPath.length > 80 
+            ? folderPath.substring(0, 77) + '...' 
+            : folderPath;
+        
+        return `
         <div class="collection-card">
             <div class="collection-name">${escapeHtml(collection.name)}</div>
             ${collection.description ? `
                 <div class="collection-description">${escapeHtml(collection.description)}</div>
             ` : ''}
-            <div class="collection-meta">
-                ${collection.folder_path ? `Folder: ${escapeHtml(collection.folder_path)}` : ''}
-            </div>
+            ${collection.folder_path ? `
+                <div class="collection-meta">
+                    <strong>Folder:</strong><br>
+                    <span title="${escapeHtml(collection.folder_path)}">${escapeHtml(displayPath)}</span>
+                </div>
+            ` : ''}
         </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 // Load Tags
@@ -450,7 +537,7 @@ async function startScan() {
     const recursive = document.getElementById('scan-recursive').checked;
     
     if (!path) {
-        alert('Please enter a directory path');
+        showToast('warning', 'Path required', 'Please enter a directory path');
         return;
     }
     
@@ -465,12 +552,13 @@ async function startScan() {
         
         updateScanProgress(response);
         
-        // Poll for progress updates
+        // Poll for progress updates (every 2 seconds to reduce server log noise)
         const interval = setInterval(async () => {
             try {
                 const status = await apiCall('/images/scan/status');
                 if (status.status === 'idle') {
                     clearInterval(interval);
+                    showToast('success', 'Scan complete', `Processed ${status.processed || 0} images`);
                     setTimeout(() => {
                         closeModal('scan-modal');
                         loadImages();
@@ -481,11 +569,12 @@ async function startScan() {
                 }
             } catch (e) {
                 clearInterval(interval);
+                showToast('error', 'Scan error', 'Failed to get scan status');
             }
-        }, 1000);
+        }, 2000); // Increased from 1000ms to 2000ms to reduce log noise
         
     } catch (error) {
-        alert(`Scan failed: ${error.message}`);
+        showToast('error', 'Scan failed', error.message);
         progressDiv.classList.add('hidden');
     }
 }
@@ -508,6 +597,7 @@ function updateScanProgress(progress) {
 // Export Prompts
 async function exportPrompts() {
     try {
+        showToast('info', 'Exporting', 'Preparing export...');
         const response = await fetch(`${API_BASE}/export/prompts?format=markdown`);
         const text = await response.text();
         
@@ -520,20 +610,235 @@ async function exportPrompts() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+        showToast('success', 'Export complete', 'Prompts exported successfully');
     } catch (error) {
-        alert(`Export failed: ${error.message}`);
+        showToast('error', 'Export failed', error.message);
     }
 }
 
 // Detail Views
 async function showImageDetail(imageId) {
-    // TODO: Implement image detail modal
-    alert(`Image detail for ${imageId} - Coming soon!`);
+    openModal('image-modal');
+    const content = document.getElementById('image-detail-content');
+    content.innerHTML = '<div class="loading-overlay"><div class="spinner"></div><span>Loading image details...</span></div>';
+    
+    try {
+        // Load image details
+        const image = await apiCall(`/images/${imageId}`);
+        
+        // Load prompts for this image
+        let promptsHtml = '<div class="loading-overlay"><div class="spinner"></div><span>Loading prompts...</span></div>';
+        try {
+            const promptsData = await apiCall(`/prompts/image/${imageId}`);
+            const prompts = promptsData.prompts || [];
+            const positivePrompts = prompts.filter(p => p.prompt_type !== 'negative' && !p.negative_prompt);
+            
+            if (positivePrompts.length > 0) {
+                promptsHtml = positivePrompts.map(p => `
+                    <div class="prompt-item" onclick="showPromptDetail('${p.id}')">
+                        <div class="prompt-text">${escapeHtml(p.prompt_text)}</div>
+                        <div class="prompt-meta">Type: ${p.prompt_type}</div>
+                    </div>
+                `).join('');
+            } else {
+                promptsHtml = '<div class="loading">No prompts found</div>';
+            }
+        } catch (e) {
+            promptsHtml = '<div class="loading">Failed to load prompts</div>';
+        }
+        
+        // Load tags for this image
+        let tagsHtml = '';
+        try {
+            const tagsData = await apiCall(`/tags/image/${imageId}`);
+            const tags = tagsData.tags || [];
+            const positiveTags = tags.filter(t => t.tag_type !== 'negative');
+            
+            if (positiveTags.length > 0) {
+                tagsHtml = `
+                    <div class="tags-section">
+                        <h3>Tags</h3>
+                        <div class="tags-list">
+                            ${positiveTags.map(t => `<span class="tag tag-${t.tag_type}">${escapeHtml(t.name)}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+        } catch (e) {
+            // Tags are optional, fail silently
+        }
+        
+        // Load metadata
+        let metadataHtml = '';
+        try {
+            const metadataData = await apiCall(`/metadata/image/${imageId}`);
+            const metadata = metadataData.metadata || [];
+            if (metadata.length > 0) {
+                metadataHtml = `
+                    <div class="metadata-section">
+                        <h3>Metadata</h3>
+                        <dl class="metadata-list">
+                            ${metadata.map(m => `
+                                <dt>${escapeHtml(m.key)}</dt>
+                                <dd>${escapeHtml(String(m.value || ''))}</dd>
+                            `).join('')}
+                        </dl>
+                    </div>
+                `;
+            }
+        } catch (e) {
+            // Metadata is optional, fail silently
+        }
+        
+        content.innerHTML = `
+            <div class="image-detail-view">
+                <div class="image-detail-header">
+                    <img src="/api/v1/images/${image.id}/file" alt="${escapeHtml(image.file_name)}" 
+                         style="max-width: 100%; max-height: 500px; object-fit: contain; border-radius: 8px;">
+                </div>
+                <div class="image-detail-info">
+                    <h3>${escapeHtml(image.file_name)}</h3>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <strong>Format:</strong> ${image.format.toUpperCase()}
+                        </div>
+                        <div class="detail-item">
+                            <strong>Size:</strong> ${formatFileSize(image.file_size)}
+                        </div>
+                        ${image.width && image.height ? `
+                            <div class="detail-item">
+                                <strong>Dimensions:</strong> ${image.width} × ${image.height}
+                            </div>
+                        ` : ''}
+                        <div class="detail-item">
+                            <strong>Path:</strong> <code>${escapeHtml(image.file_path)}</code>
+                        </div>
+                        <div class="detail-item">
+                            <strong>Created:</strong> ${new Date(image.created_at).toLocaleString()}
+                        </div>
+                    </div>
+                    ${tagsHtml}
+                    <div class="prompts-section">
+                        <h3>Prompts</h3>
+                        ${promptsHtml}
+                    </div>
+                    ${metadataHtml}
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('image-modal-title').textContent = image.file_name;
+    } catch (error) {
+        console.error('Failed to load image details:', error);
+        showToast('error', 'Failed to load image details', error.message);
+        content.innerHTML = '<div class="loading">Failed to load image details</div>';
+    }
 }
 
 async function showPromptDetail(promptId) {
-    // TODO: Implement prompt detail modal
-    alert(`Prompt detail for ${promptId} - Coming soon!`);
+    openModal('prompt-modal');
+    const content = document.getElementById('prompt-detail-content');
+    content.innerHTML = '<div class="loading-overlay"><div class="spinner"></div><span>Loading prompt details...</span></div>';
+    
+    try {
+        const prompt = await apiCall(`/prompts/${promptId}`);
+        
+        // Load image details
+        let imageHtml = '';
+        try {
+            const image = await apiCall(`/images/${prompt.image_id}`);
+            imageHtml = `
+                <div class="prompt-image-link">
+                    <a href="#" onclick="showImageDetail('${image.id}'); closeModal('prompt-modal'); return false;">
+                        <img src="/api/v1/images/${image.id}/thumbnail" alt="${escapeHtml(image.file_name)}" 
+                             style="max-width: 200px; max-height: 200px; object-fit: contain; border-radius: 4px;">
+                        <div>${escapeHtml(image.file_name)}</div>
+                    </a>
+                </div>
+            `;
+        } catch (e) {
+            imageHtml = '<div class="loading">Image not found</div>';
+        }
+        
+        // Load metadata for the image
+        let metadataHtml = '';
+        try {
+            const metadataData = await apiCall(`/metadata/image/${prompt.image_id}`);
+            const metadata = metadataData.metadata || [];
+            const relevantMetadata = metadata.filter(m => 
+                ['model', 'seed', 'steps', 'cfg_scale', 'sampler', 'size'].includes(m.key.toLowerCase())
+            );
+            
+            if (relevantMetadata.length > 0) {
+                metadataHtml = `
+                    <div class="metadata-section">
+                        <h3>Generation Parameters</h3>
+                        <dl class="metadata-list">
+                            ${relevantMetadata.map(m => `
+                                <dt>${escapeHtml(m.key)}</dt>
+                                <dd>${escapeHtml(String(m.value || ''))}</dd>
+                            `).join('')}
+                        </dl>
+                    </div>
+                `;
+            }
+        } catch (e) {
+            // Metadata is optional
+        }
+        
+        content.innerHTML = `
+            <div class="prompt-detail-view">
+                ${imageHtml}
+                <div class="prompt-detail-content">
+                    <div class="prompt-text-large">
+                        ${escapeHtml(prompt.prompt_text)}
+                    </div>
+                    ${prompt.negative_prompt ? `
+                        <div class="negative-prompt-section">
+                            <h4>Negative Prompt</h4>
+                            <div class="negative-prompt-text">${escapeHtml(prompt.negative_prompt)}</div>
+                        </div>
+                    ` : ''}
+                    <div class="prompt-meta-detail">
+                        <div class="detail-item">
+                            <strong>Type:</strong> ${prompt.prompt_type}
+                        </div>
+                        <div class="detail-item">
+                            <strong>Created:</strong> ${new Date(prompt.created_at).toLocaleString()}
+                        </div>
+                        <div class="detail-item">
+                            <strong>Image ID:</strong> <code>${prompt.image_id}</code>
+                        </div>
+                    </div>
+                    ${metadataHtml}
+                    <div class="prompt-actions">
+                        <button class="btn-secondary" onclick="copyPromptText('${prompt.id}')">Copy Prompt</button>
+                        <button class="btn-secondary" onclick="exportPrompt('${prompt.id}')">Export</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    } catch (error) {
+        console.error('Failed to load prompt details:', error);
+        showToast('error', 'Failed to load prompt details', error.message);
+        content.innerHTML = '<div class="loading">Failed to load prompt details</div>';
+    }
+}
+
+function copyPromptText(promptId) {
+    const promptText = document.querySelector('.prompt-text-large')?.textContent;
+    if (promptText) {
+        navigator.clipboard.writeText(promptText).then(() => {
+            showToast('success', 'Copied!', 'Prompt text copied to clipboard');
+        }).catch(() => {
+            showToast('error', 'Failed to copy', 'Could not copy to clipboard');
+        });
+    }
+}
+
+function exportPrompt(promptId) {
+    // TODO: Implement export functionality
+    showToast('info', 'Export', 'Export functionality coming soon');
 }
 
 function filterByTag(tagName) {

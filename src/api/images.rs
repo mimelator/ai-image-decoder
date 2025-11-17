@@ -4,6 +4,7 @@ use crate::api::ApiState;
 use crate::ingestion::{IngestionService, ScanProgress};
 use std::sync::{Arc, Mutex};
 use std::path::PathBuf;
+use log::info;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanProgressResponse {
@@ -21,6 +22,11 @@ pub struct ScanRequest {
 }
 
 static SCAN_PROGRESS: Mutex<Option<ScanProgressResponse>> = Mutex::new(None);
+
+// Helper to update scan progress
+fn update_scan_progress(progress: ScanProgressResponse) {
+    *SCAN_PROGRESS.lock().unwrap() = Some(progress);
+}
 
 pub async fn list_images(
     state: web::Data<ApiState>,
@@ -215,51 +221,153 @@ pub async fn delete_image(
 ) -> impl Responder {
     let id = path.into_inner();
 
-    // TODO: Implement delete in image_repo
-    HttpResponse::NotImplemented().json(serde_json::json!({
-        "error": "Delete not yet implemented"
-    }))
+    // Check if image exists
+    match state.image_repo.find_by_id(&id) {
+        Ok(Some(_)) => {
+            match state.image_repo.delete(&id) {
+                Ok(_) => HttpResponse::Ok().json(serde_json::json!({
+                    "success": true,
+                    "message": "Image deleted"
+                })),
+                Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
+                    "error": format!("Failed to delete image: {}", e)
+                })),
+            }
+        }
+        Ok(None) => HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Image not found"
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": format!("Failed to check image: {}", e)
+        })),
+    }
 }
 
 pub async fn scan_directory(
-    ingestion_service: web::Data<Arc<IngestionService>>,
+    ingestion_service: web::Data<IngestionService>,
     req: web::Json<ScanRequest>,
-) -> impl Responder {
+) -> Result<HttpResponse, actix_web::Error> {
+    info!("Scan endpoint called: path={}, recursive={:?}", req.path, req.recursive);
+    
     let path = PathBuf::from(&req.path);
     let recursive = req.recursive.unwrap_or(true);
+    
+    info!("Path validated: exists={}, is_dir={}", path.exists(), path.is_dir());
 
     if !path.exists() {
-        return HttpResponse::BadRequest().json(serde_json::json!({
+        return Ok(HttpResponse::BadRequest().json(serde_json::json!({
             "error": "Directory does not exist"
-        }));
+        })));
     }
 
-    // Reset progress
-    *SCAN_PROGRESS.lock().unwrap() = None;
+    if !path.is_dir() {
+        return Ok(HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "Path is not a directory"
+        })));
+    }
 
-    // Start scan in background (for now, synchronous)
-    match ingestion_service.scan_directory(&path, recursive) {
-        Ok(progress) => {
-            let response = ScanProgressResponse {
+    info!("Resetting progress...");
+    // Reset progress
+    update_scan_progress(ScanProgressResponse {
+        total_files: 0,
+        processed: 0,
+        skipped: 0,
+        errors: 0,
+        current_file: Some("Starting scan...".to_string()),
+    });
+
+    info!("Cloning service...");
+    // Start scan in background using actix_web::rt::spawn (compatible with actix runtime)
+    // web::Data wraps in Arc internally, so get_ref() gives us &IngestionService
+    // We need to clone it for the background task
+    let service_clone = ingestion_service.get_ref().clone();
+    let path_clone = path.clone();
+    
+    info!("Spawning background task...");
+    // Start scan in background - use a simpler approach
+    // Create a function pointer that can be safely moved into spawn_blocking
+    actix_web::rt::spawn(async move {
+        info!("Background task started");
+        // Run scan in blocking thread with callback
+        use crate::ingestion::ScanProgress;
+        
+        // Define a helper function that's Send + 'static
+        fn update_progress_fn(progress: &ScanProgress) {
+            update_scan_progress(ScanProgressResponse {
                 total_files: progress.total_files,
                 processed: progress.processed,
                 skipped: progress.skipped,
                 errors: progress.errors,
-                current_file: progress.current_file,
-            };
-            *SCAN_PROGRESS.lock().unwrap() = Some(response.clone());
-            HttpResponse::Ok().json(response)
+                current_file: progress.current_file.as_ref().map(|s| s.clone()),
+            });
         }
-        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
-            "error": format!("Failed to scan directory: {}", e)
-        })),
-    }
+        
+        info!("Spawning blocking task...");
+        let result = actix_web::rt::task::spawn_blocking(move || {
+            info!("Blocking task started, calling scan_directory_with_callback...");
+            service_clone.scan_directory_with_callback(&path_clone, recursive, Some(update_progress_fn as fn(&ScanProgress)))
+        }).await;
+
+        match result {
+            Ok(Ok(progress)) => {
+                let response = ScanProgressResponse {
+                    total_files: progress.total_files,
+                    processed: progress.processed,
+                    skipped: progress.skipped,
+                    errors: progress.errors,
+                    current_file: None,
+                };
+                update_scan_progress(response);
+                info!("Scan completed: {} files processed", progress.processed);
+            }
+            Ok(Err(e)) => {
+                eprintln!("Scan error: {}", e);
+                update_scan_progress(ScanProgressResponse {
+                    total_files: 0,
+                    processed: 0,
+                    skipped: 0,
+                    errors: 1,
+                    current_file: Some(format!("Error: {}", e)),
+                });
+            }
+            Err(e) => {
+                eprintln!("Task error: {}", e);
+                update_scan_progress(ScanProgressResponse {
+                    total_files: 0,
+                    processed: 0,
+                    skipped: 0,
+                    errors: 1,
+                    current_file: Some(format!("Task error: {}", e)),
+                });
+            }
+        }
+    });
+
+    // Return immediately with initial progress
+    Ok(HttpResponse::Ok().json(ScanProgressResponse {
+        total_files: 0,
+        processed: 0,
+        skipped: 0,
+        errors: 0,
+        current_file: Some("Scan started...".to_string()),
+    }))
 }
 
 pub async fn get_scan_status() -> impl Responder {
     let progress = SCAN_PROGRESS.lock().unwrap();
     match progress.as_ref() {
-        Some(p) => HttpResponse::Ok().json(p.clone()),
+        Some(p) => {
+            // Check if scan is complete
+            let is_complete = p.total_files > 0 && (p.processed + p.skipped + p.errors >= p.total_files);
+            HttpResponse::Ok().json(serde_json::json!({
+                "status": if is_complete { "idle" } else { "scanning" },
+                "total_files": p.total_files,
+                "processed": p.processed,
+                "skipped": p.skipped,
+                "errors": p.errors,
+                "current_file": p.current_file
+            }))
+        }
         None => HttpResponse::Ok().json(serde_json::json!({
             "status": "idle"
         })),
