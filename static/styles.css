@@ -332,14 +332,48 @@ body {
     min-width: 0; /* Allow card to shrink below minmax */
     overflow-wrap: break-word;
     word-wrap: break-word;
+    transition: border-color 0.2s;
+}
+
+.collection-card:hover {
+    border-color: var(--accent);
+}
+
+.collection-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.5rem;
 }
 
 .collection-name {
     font-size: 1.2rem;
     font-weight: 600;
-    margin-bottom: 0.5rem;
     word-wrap: break-word;
     overflow-wrap: break-word;
+    flex: 1;
+}
+
+.collection-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-left: 1rem;
+}
+
+.btn-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    opacity: 0.7;
+}
+
+.btn-icon:hover {
+    opacity: 1;
+    background-color: var(--bg-tertiary);
 }
 
 .collection-description {
@@ -413,6 +447,67 @@ body {
 .tag-count {
     margin-left: 0.5rem;
     opacity: 0.7;
+}
+
+.tag.tag-selected {
+    background-color: var(--accent);
+    color: white;
+    border-color: var(--accent);
+    font-weight: 600;
+}
+
+/* Active Filters Bar */
+.active-filters-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    flex-wrap: wrap;
+}
+
+.active-filters-bar > span:first-child {
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.filter-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    background-color: var(--accent);
+    color: white;
+    border-radius: 20px;
+    font-size: 0.85rem;
+}
+
+.filter-remove {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-size: 1.2rem;
+    line-height: 1;
+    padding: 0;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+}
+
+.filter-remove:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.btn-small {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.85rem;
 }
 
 /* Statistics */

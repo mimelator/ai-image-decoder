@@ -40,9 +40,24 @@ pub async fn list_images(
         .get("limit")
         .and_then(|v| v.parse::<usize>().ok())
         .unwrap_or(50);
+    
+    // Support tag filtering via query parameter
+    let tag_filter = query.get("tag").map(|s| s.as_str());
 
     match state.image_repo.list_all() {
-        Ok(images) => {
+        Ok(mut images) => {
+            // Filter by tag if specified
+            if let Some(tag_name) = tag_filter {
+                images.retain(|image| {
+                    // Check if image has this tag
+                    if let Ok(tags) = state.tag_repo.find_by_image_id(&image.id) {
+                        tags.iter().any(|(tag, _)| tag.name.to_lowercase() == tag_name.to_lowercase())
+                    } else {
+                        false
+                    }
+                });
+            }
+            
             let total = images.len();
             let start = (page - 1) * limit;
             let end = std::cmp::min(start + limit, total);

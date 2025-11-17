@@ -37,6 +37,31 @@
                 <div class="search-bar">
                     <input type="text" id="image-search" placeholder="Search images..." class="search-input">
                     <button id="image-search-btn" class="btn-secondary">Search</button>
+                    <button id="export-images-btn" class="btn-secondary" onclick="exportImages('json')">Export JSON</button>
+                    <button id="export-images-md-btn" class="btn-secondary" onclick="exportImages('markdown')">Export MD</button>
+                </div>
+                <div class="advanced-filters" id="image-filters" style="margin-top: 1rem; padding: 1rem; background-color: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border);">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                        <div>
+                            <label for="filter-format" style="display: block; margin-bottom: 0.5rem; font-size: 0.9rem;">Format:</label>
+                            <select id="filter-format" class="select-input" onchange="applyImageFilters()">
+                                <option value="">All Formats</option>
+                                <option value="png">PNG</option>
+                                <option value="jpg">JPG</option>
+                                <option value="jpeg">JPEG</option>
+                                <option value="webp">WebP</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="filter-model" style="display: block; margin-bottom: 0.5rem; font-size: 0.9rem;">Model:</label>
+                            <input type="text" id="filter-model" class="search-input" placeholder="Filter by model..." onchange="applyImageFilters()">
+                        </div>
+                        <div>
+                            <label for="filter-sampler" style="display: block; margin-bottom: 0.5rem; font-size: 0.9rem;">Sampler:</label>
+                            <input type="text" id="filter-sampler" class="search-input" placeholder="Filter by sampler..." onchange="applyImageFilters()">
+                        </div>
+                    </div>
+                    <button onclick="clearImageFilters()" class="btn-secondary btn-small" style="margin-top: 1rem;">Clear Filters</button>
                 </div>
                 <div id="images-grid" class="images-grid">
                     <!-- Images will be loaded here -->
@@ -49,7 +74,8 @@
                 <div class="search-bar">
                     <input type="text" id="prompt-search" placeholder="Search prompts..." class="search-input">
                     <button id="prompt-search-btn" class="btn-secondary">Search</button>
-                    <button id="export-prompts-btn" class="btn-secondary">Export</button>
+                    <button id="export-prompts-btn" class="btn-secondary" onclick="exportPrompts('json')">Export JSON</button>
+                    <button id="export-prompts-md-btn" class="btn-secondary" onclick="exportPrompts('markdown')">Export MD</button>
                 </div>
                 <div id="prompts-list" class="prompts-list">
                     <!-- Prompts will be loaded here -->
@@ -173,6 +199,49 @@
             </div>
             <div class="modal-body">
                 <div id="prompt-detail-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Collection Modal -->
+    <div id="create-collection-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create Collection</h2>
+                <button class="modal-close" data-modal="create-collection-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <label for="collection-name">Name:</label>
+                <input type="text" id="collection-name" class="input-full" placeholder="Collection name" required>
+                <label for="collection-description">Description (optional):</label>
+                <textarea id="collection-description" class="input-full" rows="3" placeholder="Collection description"></textarea>
+                <label for="collection-folder-path">Folder Path (optional):</label>
+                <input type="text" id="collection-folder-path" class="input-full" placeholder="/path/to/folder">
+            </div>
+            <div class="modal-footer">
+                <button id="create-collection-submit-btn" class="btn-primary">Create</button>
+                <button class="btn-secondary modal-close" data-modal="create-collection-modal">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Collection Modal -->
+    <div id="edit-collection-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Collection</h2>
+                <button class="modal-close" data-modal="edit-collection-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-collection-id">
+                <label for="edit-collection-name">Name:</label>
+                <input type="text" id="edit-collection-name" class="input-full" placeholder="Collection name" required>
+                <label for="edit-collection-description">Description (optional):</label>
+                <textarea id="edit-collection-description" class="input-full" rows="3" placeholder="Collection description"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button id="save-collection-btn" class="btn-primary">Save</button>
+                <button class="btn-secondary modal-close" data-modal="edit-collection-modal">Cancel</button>
             </div>
         </div>
     </div>

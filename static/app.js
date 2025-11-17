@@ -7,6 +7,12 @@ let currentPage = {
     prompts: 1
 };
 let currentTab = 'images';
+let selectedTags = new Set(); // Track selected tags for filtering
+let imageFilters = {
+    format: '',
+    model: '',
+    sampler: ''
+};
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -200,9 +206,19 @@ function setupEventListeners() {
     const createCollectionBtn = document.getElementById('create-collection-btn');
     if (createCollectionBtn) {
         createCollectionBtn.addEventListener('click', () => {
-            // TODO: Implement create collection modal
-            alert('Create collection feature coming soon!');
+            openCreateCollectionModal();
         });
+    }
+    
+    // Collection modal submit handlers
+    const createCollectionSubmitBtn = document.getElementById('create-collection-submit-btn');
+    if (createCollectionSubmitBtn) {
+        createCollectionSubmitBtn.addEventListener('click', submitCreateCollection);
+    }
+    
+    const saveCollectionBtn = document.getElementById('save-collection-btn');
+    if (saveCollectionBtn) {
+        saveCollectionBtn.addEventListener('click', submitEditCollection);
     }
 }
 
@@ -312,15 +328,88 @@ async function loadStats() {
 async function loadImages(page = 1) {
     showLoading('images-grid', 'Loading images...');
     try {
-        const data = await apiCall(`/images?page=${page}&limit=24`);
-        displayImages(data.images || []);
-        displayPagination('images-pagination', page, data.pagination);
+        // Build query with tag filters
+        let query = `/images?page=${page}&limit=1000`; // Fetch more to filter client-side
+        
+        // If tags are selected, filter client-side (fetch all and filter)
+        // For now, we'll filter client-side since we need to check multiple tags
+        const data = await apiCall(query);
+        let images = data.images || [];
+        
+        // Filter by selected tags (client-side for now)
+        if (selectedTags.size > 0) {
+            const filteredImages = [];
+            for (const image of images) {
+                try {
+                    const tagsData = await apiCall(`/tags/image/${image.id}`);
+                    const imageTags = (tagsData.tags || []).map(t => t.name.toLowerCase());
+                    // Check if image has all selected tags (AND logic)
+                    const hasAllTags = Array.from(selectedTags).every(tag => 
+                        imageTags.includes(tag.toLowerCase())
+                    );
+                    if (hasAllTags) {
+                        filteredImages.push(image);
+                    }
+                } catch (e) {
+                    // Skip if tag fetch fails
+                }
+            }
+            images = filteredImages;
+        }
+        
+        // Apply advanced filters
+        images = applyImageFiltersToArray(images);
+        
+        // Paginate filtered results
+        const limit = 24;
+        const total = images.length;
+        const start = (page - 1) * limit;
+        const end = Math.min(start + limit, total);
+        const paginated = images.slice(start, end);
+        
+        displayImages(paginated);
+        displayPagination('images-pagination', page, {
+            page: page,
+            limit: limit,
+            total: total,
+            pages: Math.ceil(total / limit)
+        });
         currentPage.images = page;
     } catch (error) {
         console.error('Failed to load images:', error);
         showToast('error', 'Failed to load images', error.message);
         document.getElementById('images-grid').innerHTML = '<div class="loading">Failed to load images</div>';
     }
+}
+
+function applyImageFiltersToArray(images) {
+    return images.filter(image => {
+        // Format filter
+        if (imageFilters.format && image.format.toLowerCase() !== imageFilters.format.toLowerCase()) {
+            return false;
+        }
+        
+        // Model and sampler filters require metadata lookup
+        // For now, we'll do basic filtering - can be enhanced with metadata API
+        return true;
+    });
+}
+
+function applyImageFilters() {
+    imageFilters.format = document.getElementById('filter-format').value;
+    imageFilters.model = document.getElementById('filter-model').value.trim();
+    imageFilters.sampler = document.getElementById('filter-sampler').value.trim();
+    loadImages(1);
+}
+
+function clearImageFilters() {
+    imageFilters.format = '';
+    imageFilters.model = '';
+    imageFilters.sampler = '';
+    document.getElementById('filter-format').value = '';
+    document.getElementById('filter-model').value = '';
+    document.getElementById('filter-sampler').value = '';
+    loadImages(1);
 }
 
 function displayImages(images) {
@@ -470,7 +559,13 @@ function displayCollections(collections) {
         
         return `
         <div class="collection-card">
-            <div class="collection-name">${escapeHtml(collection.name)}</div>
+            <div class="collection-header">
+                <div class="collection-name">${escapeHtml(collection.name)}</div>
+                <div class="collection-actions">
+                    <button class="btn-icon" onclick="editCollection('${collection.id}')" title="Edit">✏️</button>
+                    <button class="btn-icon" onclick="deleteCollection('${collection.id}')" title="Delete">🗑️</button>
+                </div>
+            </div>
             ${collection.description ? `
                 <div class="collection-description">${escapeHtml(collection.description)}</div>
             ` : ''}
@@ -535,6 +630,9 @@ function displayTags(tags) {
             <span class="tag-count">${tag.count}</span>
         </span>
     `).join('');
+    
+    // Update filter display after loading tags
+    updateTagFilterDisplay();
 }
 
 // Scan Directory
@@ -601,24 +699,26 @@ function updateScanProgress(progress) {
 }
 
 // Export Prompts
-async function exportPrompts() {
+async function exportPrompts(format = 'json') {
     try {
-        showToast('info', 'Exporting', 'Preparing export...');
-        const response = await fetch(`${API_BASE}/export/prompts?format=markdown`);
-        const text = await response.text();
+        showLoading('prompts-list', 'Exporting prompts...');
+        const response = await fetch(`${API_BASE}/export/prompts?format=${format}`);
+        if (!response.ok) throw new Error('Export failed');
         
-        const blob = new Blob([text], { type: 'text/markdown' });
-        const url = URL.createObjectURL(blob);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `prompts-export-${new Date().toISOString().split('T')[0]}.md`;
+        a.download = `prompts-export-${new Date().toISOString().split('T')[0]}.${format === 'json' ? 'json' : 'md'}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showToast('success', 'Export complete', 'Prompts exported successfully');
+        window.URL.revokeObjectURL(url);
+        
+        showToast('success', 'Export Complete', `Prompts exported as ${format.toUpperCase()}`);
     } catch (error) {
-        showToast('error', 'Export failed', error.message);
+        console.error('Export failed:', error);
+        showToast('error', 'Export Failed', error.message);
     }
 }
 
@@ -843,13 +943,84 @@ function copyPromptText(promptId) {
 }
 
 function exportPrompt(promptId) {
-    // TODO: Implement export functionality
-    showToast('info', 'Export', 'Export functionality coming soon');
+    // Export single prompt - could open detail modal with export option
+    showPromptDetail(promptId);
 }
 
 function filterByTag(tagName) {
-    // TODO: Implement tag filtering
-    alert(`Filter by tag: ${tagName} - Coming soon!`);
+    const normalizedTag = tagName.toLowerCase();
+    
+    // Toggle tag selection
+    if (selectedTags.has(normalizedTag)) {
+        selectedTags.delete(normalizedTag);
+    } else {
+        selectedTags.add(normalizedTag);
+    }
+    
+    // Update UI to show active filters
+    updateTagFilterDisplay();
+    
+    // Reload images with new filter
+    loadImages(1);
+}
+
+function updateTagFilterDisplay() {
+    // Update tag cloud to show selected tags
+    const tagElements = document.querySelectorAll('.tag');
+    tagElements.forEach(el => {
+        const tagName = el.textContent.trim().split('\n')[0].toLowerCase();
+        if (selectedTags.has(tagName)) {
+            el.classList.add('tag-selected');
+        } else {
+            el.classList.remove('tag-selected');
+        }
+    });
+    
+    // Show active filters
+    const filtersContainer = document.getElementById('active-filters');
+    if (!filtersContainer) {
+        // Create filters container if it doesn't exist
+        const imagesTab = document.getElementById('images-tab');
+        if (imagesTab) {
+            const filtersDiv = document.createElement('div');
+            filtersDiv.id = 'active-filters';
+            filtersDiv.className = 'active-filters';
+            filtersDiv.style.marginBottom = '1rem';
+            imagesTab.insertBefore(filtersDiv, imagesTab.firstChild);
+        }
+    }
+    
+    if (selectedTags.size > 0) {
+        const filtersHtml = `
+            <div class="active-filters-bar">
+                <span>Active filters:</span>
+                ${Array.from(selectedTags).map(tag => `
+                    <span class="filter-tag">
+                        ${escapeHtml(tag)}
+                        <button onclick="removeTagFilter('${escapeHtml(tag)}')" class="filter-remove">×</button>
+                    </span>
+                `).join('')}
+                <button onclick="clearTagFilters()" class="btn-secondary btn-small">Clear all</button>
+            </div>
+        `;
+        document.getElementById('active-filters').innerHTML = filtersHtml;
+    } else {
+        if (document.getElementById('active-filters')) {
+            document.getElementById('active-filters').innerHTML = '';
+        }
+    }
+}
+
+function removeTagFilter(tagName) {
+    selectedTags.delete(tagName.toLowerCase());
+    updateTagFilterDisplay();
+    loadImages(1);
+}
+
+function clearTagFilters() {
+    selectedTags.clear();
+    updateTagFilterDisplay();
+    loadImages(1);
 }
 
 // Pagination
@@ -905,5 +1076,127 @@ function formatFileSize(bytes) {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// Collection Management Functions
+function openCreateCollectionModal() {
+    document.getElementById('collection-name').value = '';
+    document.getElementById('collection-description').value = '';
+    document.getElementById('collection-folder-path').value = '';
+    openModal('create-collection-modal');
+}
+
+async function submitCreateCollection() {
+    const name = document.getElementById('collection-name').value.trim();
+    const description = document.getElementById('collection-description').value.trim() || null;
+    const folderPath = document.getElementById('collection-folder-path').value.trim() || null;
+    
+    if (!name) {
+        showToast('error', 'Validation Error', 'Collection name is required');
+        return;
+    }
+    
+    try {
+        showLoading('collections-list', 'Creating collection...');
+        const data = await apiCall('/collections', {
+            method: 'POST',
+            body: JSON.stringify({
+                name,
+                description,
+                folder_path: folderPath
+            })
+        });
+        
+        closeModal('create-collection-modal');
+        showToast('success', 'Collection Created', `Collection "${name}" created successfully`);
+        loadCollections();
+    } catch (error) {
+        console.error('Failed to create collection:', error);
+        showToast('error', 'Failed to create collection', error.message);
+    }
+}
+
+async function editCollection(collectionId) {
+    try {
+        const collection = await apiCall(`/collections/${collectionId}`);
+        document.getElementById('edit-collection-id').value = collection.id;
+        document.getElementById('edit-collection-name').value = collection.name || '';
+        document.getElementById('edit-collection-description').value = collection.description || '';
+        openModal('edit-collection-modal');
+    } catch (error) {
+        console.error('Failed to load collection:', error);
+        showToast('error', 'Failed to load collection', error.message);
+    }
+}
+
+async function submitEditCollection() {
+    const id = document.getElementById('edit-collection-id').value;
+    const name = document.getElementById('edit-collection-name').value.trim();
+    const description = document.getElementById('edit-collection-description').value.trim() || null;
+    
+    if (!name) {
+        showToast('error', 'Validation Error', 'Collection name is required');
+        return;
+    }
+    
+    try {
+        showLoading('collections-list', 'Updating collection...');
+        const data = await apiCall(`/collections/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+                name,
+                description
+            })
+        });
+        
+        closeModal('edit-collection-modal');
+        showToast('success', 'Collection Updated', `Collection "${name}" updated successfully`);
+        loadCollections();
+    } catch (error) {
+        console.error('Failed to update collection:', error);
+        showToast('error', 'Failed to update collection', error.message);
+    }
+}
+
+async function deleteCollection(collectionId) {
+    if (!confirm('Are you sure you want to delete this collection? This action cannot be undone.')) {
+        return;
+    }
+    
+    try {
+        showLoading('collections-list', 'Deleting collection...');
+        await apiCall(`/collections/${collectionId}`, {
+            method: 'DELETE'
+        });
+        
+        showToast('success', 'Collection Deleted', 'Collection deleted successfully');
+        loadCollections();
+    } catch (error) {
+        console.error('Failed to delete collection:', error);
+        showToast('error', 'Failed to delete collection', error.message);
+    }
+}
+
+async function exportImages(format = 'json') {
+    try {
+        showLoading('images-grid', 'Exporting images...');
+        const response = await fetch(`${API_BASE}/export/images?format=${format}`);
+        if (!response.ok) throw new Error('Export failed');
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `images-export-${new Date().toISOString().split('T')[0]}.${format === 'json' ? 'json' : 'md'}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        showToast('success', 'Export Complete', `Images exported as ${format.toUpperCase()}`);
+    } catch (error) {
+        console.error('Export failed:', error);
+        showToast('error', 'Export Failed', error.message);
+    }
 }
 
