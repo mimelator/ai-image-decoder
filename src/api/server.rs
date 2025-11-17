@@ -1,7 +1,7 @@
 use actix_web::{web, App, HttpServer};
 use actix_files::Files;
 use actix_cors::Cors;
-use crate::api::{ApiState, health};
+use crate::api::{ApiState, health, version};
 use crate::api::images::*;
 use crate::api::prompts::*;
 use crate::api::search::*;
@@ -69,6 +69,8 @@ pub async fn start_server(config: Config) -> std::io::Result<()> {
             .wrap(actix_web::middleware::Logger::default())
             // Health check
             .route("/health", web::get().to(health))
+            // Version
+            .route("/version", web::get().to(version))
             // API v1 routes
             .service(
                 web::scope("/api/v1")
