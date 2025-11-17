@@ -587,10 +587,13 @@ async function searchPrompts(query) {
     
     showLoading('prompts-list', 'Searching prompts...');
     try {
-        const data = await apiCall(`/prompts/search?q=${encodeURIComponent(query)}`);
+        // Use the correct search endpoint
+        const data = await apiCall(`/search/prompts?q=${encodeURIComponent(query)}`);
         displayPrompts(data.prompts || []);
         if (data.prompts && data.prompts.length === 0) {
             showToast('info', 'No results', 'No prompts found matching your search');
+        } else if (data.prompts && data.prompts.length > 0) {
+            showToast('success', 'Search complete', `Found ${data.prompts.length} prompt(s)`);
         }
     } catch (error) {
         console.error('Search failed:', error);
