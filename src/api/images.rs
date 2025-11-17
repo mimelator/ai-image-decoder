@@ -4,7 +4,7 @@ use crate::api::ApiState;
 use crate::ingestion::{IngestionService, ScanProgress};
 use std::sync::{Arc, Mutex};
 use std::path::PathBuf;
-use log::info;
+use log::{info, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanProgressResponse {
@@ -272,14 +272,18 @@ pub async fn scan_directory(
     info!("Path validated: path='{}', exists={}, is_dir={}", path.display(), path.exists(), path.is_dir());
 
     if !path.exists() {
+        let error_msg = format!("Directory does not exist: {}", path.display());
+        warn!("{}", error_msg);
         return Ok(HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "Directory does not exist"
+            "error": error_msg
         })));
     }
 
     if !path.is_dir() {
+        let error_msg = format!("Path is not a directory: {}", path.display());
+        warn!("{}", error_msg);
         return Ok(HttpResponse::BadRequest().json(serde_json::json!({
-            "error": "Path is not a directory"
+            "error": error_msg
         })));
     }
 
