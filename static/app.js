@@ -270,10 +270,22 @@ function displayImages(images) {
         return;
     }
     
-    grid.innerHTML = images.map(image => `
+    grid.innerHTML = images.map(image => {
+        // Try to load image via API endpoint, fallback to placeholder
+        let thumbnailContent = '';
+        if (image.file_path) {
+            // Encode the file path for URL
+            const encodedPath = encodeURIComponent(image.file_path);
+            // Use a proxy endpoint to serve the image
+            thumbnailContent = `<img src="/api/v1/images/${image.id}/file" alt="${escapeHtml(image.file_name)}" onerror="this.parentElement.innerHTML='<div class=\\'image-placeholder\\'>${image.width && image.height ? image.width + '×' + image.height : 'Image'}</div>'" style="max-width: 100%; max-height: 200px; object-fit: contain; width: 100%; height: 200px;">`;
+        } else {
+            thumbnailContent = `<div class="image-placeholder">${image.width && image.height ? `${image.width}×${image.height}` : 'No image'}</div>`;
+        }
+        
+        return `
         <div class="image-card" onclick="showImageDetail('${image.id}')">
             <div class="image-thumbnail">
-                ${image.width && image.height ? `${image.width}×${image.height}` : 'No thumbnail'}
+                ${thumbnailContent}
             </div>
             <div class="image-info">
                 <div class="image-name">${escapeHtml(image.file_name)}</div>
@@ -282,7 +294,8 @@ function displayImages(images) {
                 </div>
             </div>
         </div>
-    `).join('');
+    `;
+    }).join('');
 }
 
 // Load Prompts
@@ -305,14 +318,14 @@ function displayPrompts(prompts) {
         return;
     }
     
-    list.innerHTML = prompts.map(prompt => `
+    // Filter out negative prompts
+    const positivePrompts = prompts.filter(prompt => 
+        prompt.prompt_type !== 'negative' && !prompt.negative_prompt
+    );
+    
+    list.innerHTML = positivePrompts.map(prompt => `
         <div class="prompt-card" onclick="showPromptDetail('${prompt.id}')">
             <div class="prompt-text">${escapeHtml(prompt.prompt_text)}</div>
-            ${prompt.negative_prompt ? `
-                <div class="prompt-negative">
-                    <strong>Negative:</strong> ${escapeHtml(prompt.negative_prompt)}
-                </div>
-            ` : ''}
             <div class="prompt-meta">
                 <span>Image ID: ${prompt.image_id.substring(0, 8)}...</span>
                 <span>Type: ${prompt.prompt_type}</span>
@@ -419,10 +432,13 @@ function displayTags(tags) {
         return;
     }
     
-    // Sort by count
-    tags.sort((a, b) => b.count - a.count);
+    // Filter out negative tags
+    const positiveTags = tags.filter(tag => tag.type !== 'negative');
     
-    cloud.innerHTML = tags.map(tag => `
+    // Sort by count
+    positiveTags.sort((a, b) => b.count - a.count);
+    
+    cloud.innerHTML = positiveTags.map(tag => `
         <span class="tag ${tag.type}" onclick="filterByTag('${escapeHtml(tag.name)}')">
             ${escapeHtml(tag.name)}
             <span class="tag-count">${tag.count}</span>

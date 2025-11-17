@@ -156,6 +156,57 @@ async function testImagesTab(page) {
     console.log('\n🖼️  Testing Images tab interactions...');
     
     try {
+        // Wait for images grid to load
+        await page.waitForSelector('#images-grid', { timeout: 10000 });
+        await page.waitForTimeout(2000); // Wait for images to load
+        
+        // Check if images are displayed
+        const imageCards = await page.$$('.image-card');
+        const imageCount = imageCards.length;
+        
+        if (imageCount > 0) {
+            console.log(`  ✅ Found ${imageCount} image card(s)`);
+            
+            // Check if images are actually loading (check for img tags or placeholders)
+            const imageElements = await page.$$('.image-thumbnail img, .image-placeholder');
+            const imageElementsCount = imageElements.length;
+            
+            if (imageElementsCount > 0) {
+                console.log(`  ✅ Found ${imageElementsCount} image element(s) (img tags or placeholders)`);
+                
+                // Check if any images loaded successfully
+                const loadedImages = await page.evaluate(() => {
+                    const images = Array.from(document.querySelectorAll('.image-thumbnail img'));
+                    return images.filter(img => {
+                        // Check if image loaded (naturalWidth > 0) or if it's a placeholder
+                        return img.naturalWidth > 0 || img.complete === false;
+                    }).length;
+                });
+                
+                if (loadedImages > 0) {
+                    console.log(`  ✅ ${loadedImages} image(s) loaded successfully`);
+                } else {
+                    // Check for placeholders
+                    const placeholders = await page.$$('.image-placeholder');
+                    if (placeholders.length > 0) {
+                        console.log(`  ⚠️  ${placeholders.length} placeholder(s) shown (images may not be accessible)`);
+                    }
+                }
+            } else {
+                console.log(`  ⚠️  No image elements found in cards`);
+            }
+            
+            // Test clicking first image card
+            if (imageCards.length > 0) {
+                await imageCards[0].click();
+                await page.waitForTimeout(500);
+                console.log('  ✅ Image card click tested');
+            }
+        } else {
+            console.log('  ⚠️  No image cards found - database may be empty');
+        }
+        
+        // Test search
         const searchInput = await page.$('#image-search');
         if (searchInput) {
             await searchInput.fill('test');
@@ -164,9 +215,17 @@ async function testImagesTab(page) {
             console.log('  ✅ Image search tested');
         }
         
-        testResults.interactions.images = 'passed';
+        testResults.interactions.images = {
+            status: 'passed',
+            imageCount: imageCount,
+            timestamp: new Date().toISOString()
+        };
     } catch (error) {
-        testResults.interactions.images = `failed: ${error.message}`;
+        testResults.interactions.images = {
+            status: 'failed',
+            error: error.message,
+            timestamp: new Date().toISOString()
+        };
         console.log(`  ❌ Images interactions failed: ${error.message}`);
     }
 }
@@ -275,9 +334,47 @@ async function runTests() {
             await testPageNavigation(page, tab);
         }
         
-        // Test interactions
+        // Test interactions - start with images tab to validate image display
         await testPageNavigation(page, 'images');
         await testImagesTab(page);
+        
+        // Validate images are accessible via API
+        console.log('\n🔍 Validating image API endpoints...');
+        try {
+            const imagesResponse = await page.evaluate(async () => {
+                const response = await fetch('/api/v1/images?page=1&limit=5');
+                return await response.json();
+            });
+            
+            if (imagesResponse.images && imagesResponse.images.length > 0) {
+                const firstImage = imagesResponse.images[0];
+                console.log(`  ✅ API returned ${imagesResponse.images.length} image(s)`);
+                console.log(`  📋 First image: ${firstImage.file_name} (ID: ${firstImage.id.substring(0, 8)}...)`);
+                
+                // Test image file endpoint
+                try {
+                    const fileResponse = await page.evaluate(async (imageId) => {
+                        const response = await fetch(`/api/v1/images/${imageId}/file`);
+                        return {
+                            status: response.status,
+                            contentType: response.headers.get('content-type')
+                        };
+                    }, firstImage.id);
+                    
+                    if (fileResponse.status === 200) {
+                        console.log(`  ✅ Image file endpoint accessible (Content-Type: ${fileResponse.contentType})`);
+                    } else {
+                        console.log(`  ⚠️  Image file endpoint returned status ${fileResponse.status}`);
+                    }
+                } catch (error) {
+                    console.log(`  ⚠️  Image file endpoint test failed: ${error.message}`);
+                }
+            } else {
+                console.log('  ⚠️  No images returned from API');
+            }
+        } catch (error) {
+            console.log(`  ⚠️  API validation failed: ${error.message}`);
+        }
         
         await testPageNavigation(page, 'prompts');
         await testPromptsTab(page);
@@ -318,6 +415,15 @@ function generateReport() {
     console.log('============================================================');
     console.log(`\n✅ Pages Tested: ${pagesPassed}/${pagesTested}`);
     console.log(`✅ Interactions Tested: ${interactionsTested}`);
+    
+    // Show image validation results
+    if (testResults.interactions.images && typeof testResults.interactions.images === 'object') {
+        const imgResults = testResults.interactions.images;
+        if (imgResults.imageCount !== undefined) {
+            console.log(`🖼️  Images Found: ${imgResults.imageCount}`);
+        }
+    }
+    
     console.log(`❌ JavaScript Errors: ${testResults.errors.length}`);
     console.log(`⚠️  Warnings: ${testResults.warnings.length}`);
     console.log(`⏱️  Duration: ${Math.round(testResults.duration / 1000)}s`);

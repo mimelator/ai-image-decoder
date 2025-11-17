@@ -78,6 +78,7 @@ pub async fn start_server(config: Config) -> std::io::Result<()> {
                     .route("/images", web::get().to(list_images))
                     .route("/images/{id}", web::get().to(get_image))
                     .route("/images/{id}/thumbnail", web::get().to(get_thumbnail))
+                    .route("/images/{id}/file", web::get().to(get_image_file))
                     .route("/images/{id}", web::delete().to(delete_image))
                     .app_data(ingestion_state.clone())
                     .route("/images/scan", web::post().to(scan_directory))
@@ -123,6 +124,11 @@ pub async fn start_server(config: Config) -> std::io::Result<()> {
                 path.push("static");
                 path.to_string_lossy().to_string()
             }))
+            // Serve image files
+            .service(
+                web::scope("/images")
+                    .service(Files::new("/", "/").show_files_listing())
+            )
             // Root
             .route("/", web::get().to(index_handler))
     })

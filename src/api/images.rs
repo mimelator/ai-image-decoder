@@ -97,6 +97,57 @@ pub async fn get_thumbnail(
     }
 }
 
+pub async fn get_image_file(
+    state: web::Data<ApiState>,
+    path: web::Path<String>,
+) -> impl Responder {
+    use actix_web::http::header::{ContentType, ContentDisposition, DispositionType};
+    use std::fs;
+    
+    let id = path.into_inner();
+
+    match state.image_repo.find_by_id(&id) {
+        Ok(Some(image)) => {
+            // Check if file exists
+            if !std::path::Path::new(&image.file_path).exists() {
+                return HttpResponse::NotFound().json(serde_json::json!({
+                    "error": "Image file not found on disk"
+                }));
+            }
+            
+            // Read file
+            match fs::read(&image.file_path) {
+                Ok(file_data) => {
+                    // Determine content type from format
+                    let content_type = match image.format.to_lowercase().as_str() {
+                        "png" => "image/png",
+                        "jpg" | "jpeg" => "image/jpeg",
+                        "webp" => "image/webp",
+                        _ => "application/octet-stream",
+                    };
+                    
+                    HttpResponse::Ok()
+                        .content_type(ContentType(content_type.parse().unwrap()))
+                        .insert_header(ContentDisposition {
+                            disposition: DispositionType::Inline,
+                            parameters: vec![],
+                        })
+                        .body(file_data)
+                }
+                Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
+                    "error": format!("Failed to read image file: {}", e)
+                })),
+            }
+        }
+        Ok(None) => HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Image not found"
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": format!("Failed to get image: {}", e)
+        })),
+    }
+}
+
 pub async fn delete_image(
     state: web::Data<ApiState>,
     path: web::Path<String>,

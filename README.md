@@ -18,9 +18,24 @@ This tool scans your local image directories, extracts embedded prompts and gene
 
 ## Project Status
 
-**Planning Phase** - Project plan and architecture documentation complete.
+**Alpha Release (v0.1.0-alpha)** - Core functionality implemented and tested.
+
+✅ **Completed:**
+- Metadata extraction (PNG, JPEG, WebP)
+- ComfyUI workflow parsing
+- Intelligent tag extraction
+- Folder-based collections
+- Full-text search
+- REST API
+- Web UI with dark/light mode
+- Test harness
+
+🚧 **In Progress:**
+- Thumbnail generation
+- Advanced UI features
 
 See [PROJECT_PLAN.md](./PROJECT_PLAN.md) for detailed implementation plan.
+See [USAGE_GUIDE.md](./USAGE_GUIDE.md) for usage and testing instructions.
 
 ## Architecture
 
@@ -52,7 +67,7 @@ Similar to `wavelength-arch-decoder`, this tool follows a self-contained archite
 - **[PROJECT_PLAN.md](./PROJECT_PLAN.md)**: Complete project plan with architecture, phases, and implementation details
 - **[METADATA_GUIDE.md](./METADATA_GUIDE.md)**: Guide to understanding AI image metadata formats and extraction
 
-## Quick Start (Planned)
+## Quick Start
 
 ```bash
 # Build the project
@@ -61,9 +76,14 @@ cargo build --release
 # Run the server
 cargo run --release
 
+# Or scan a directory directly (CLI mode)
+cargo run -- scan /path/to/images
+
 # Open browser
 open http://localhost:8080
 ```
+
+**📖 See [USAGE_GUIDE.md](./USAGE_GUIDE.md) for complete usage instructions and testing guide.**
 
 ## Configuration (Planned)
 
