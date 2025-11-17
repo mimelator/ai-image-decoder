@@ -378,10 +378,16 @@ function displayPrompts(prompts) {
         return;
     }
     
-    // Filter out negative prompts
+    // Filter out negative prompts - only filter by prompt_type, not by negative_prompt field
+    // The negative_prompt field is metadata about what was excluded, not an indicator that this prompt is negative
     const positivePrompts = prompts.filter(prompt => 
-        prompt.prompt_type !== 'negative' && !prompt.negative_prompt
+        prompt.prompt_type !== 'negative'
     );
+    
+    if (positivePrompts.length === 0) {
+        list.innerHTML = '<div class="loading">No positive prompts found</div>';
+        return;
+    }
     
     list.innerHTML = positivePrompts.map(prompt => `
         <div class="prompt-card" onclick="showPromptDetail('${prompt.id}')">
