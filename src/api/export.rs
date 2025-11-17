@@ -1,5 +1,4 @@
 use actix_web::{web, HttpResponse, Responder};
-use std::collections::HashMap;
 use crate::api::ApiState;
 
 pub async fn export_prompts(
@@ -89,9 +88,114 @@ pub async fn export_collection(
     path: web::Path<String>,
     query: web::Query<std::collections::HashMap<String, String>>,
 ) -> impl Responder {
-    // TODO: Implement collection export
-    HttpResponse::NotImplemented().json(serde_json::json!({
-        "error": "Collection export not yet implemented"
-    }))
+    let collection_id = path.into_inner();
+    let format = query.get("format").map(|s| s.as_str()).unwrap_or("json");
+
+    // Get collection
+    let collection = match state.collection_repo.find_by_id(&collection_id) {
+        Ok(Some(col)) => col,
+        Ok(None) => {
+            return HttpResponse::NotFound().json(serde_json::json!({
+                "error": "Collection not found"
+            }));
+        }
+        Err(e) => {
+            return HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": format!("Failed to get collection: {}", e)
+            }));
+        }
+    };
+
+    // Get image IDs for this collection
+    let image_ids = match state.collection_repo.get_image_ids(&collection_id) {
+        Ok(ids) => ids,
+        Err(e) => {
+            return HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": format!("Failed to get collection images: {}", e)
+            }));
+        }
+    };
+
+    // Get full image data
+    let mut images = Vec::new();
+    for image_id in image_ids {
+        if let Ok(Some(image)) = state.image_repo.find_by_id(&image_id) {
+            images.push(image);
+        }
+    }
+
+    // Get prompts for all images
+    let mut all_prompts = Vec::new();
+    for image in &images {
+        if let Ok(prompts) = state.prompt_repo.find_by_image_id(&image.id) {
+            all_prompts.extend(prompts);
+        }
+    }
+
+    match format {
+        "markdown" => {
+            let mut markdown = String::from(format!("# Collection: {}\n\n", collection.name));
+            
+            if let Some(desc) = &collection.description {
+                markdown.push_str(&format!("{}\n\n", desc));
+            }
+            
+            if let Some(folder) = &collection.folder_path {
+                markdown.push_str(&format!("**Folder:** `{}`\n\n", folder));
+            }
+            
+            markdown.push_str(&format!("**Images:** {}  \n", images.len()));
+            markdown.push_str(&format!("**Prompts:** {}  \n\n", all_prompts.len()));
+            markdown.push_str("---\n\n");
+
+            // Add images section
+            markdown.push_str("## Images\n\n");
+            for image in &images {
+                markdown.push_str(&format!("### {}\n\n", image.file_name));
+                markdown.push_str(&format!("- **Path:** `{}`\n", image.file_path));
+                markdown.push_str(&format!("- **Format:** {}\n", image.format.to_uppercase()));
+                if let (Some(w), Some(h)) = (image.width, image.height) {
+                    markdown.push_str(&format!("- **Size:** {}x{}\n", w, h));
+                }
+                markdown.push_str(&format!("- **File Size:** {} bytes\n", image.file_size));
+                markdown.push_str("\n");
+            }
+
+            // Add prompts section
+            if !all_prompts.is_empty() {
+                markdown.push_str("## Prompts\n\n");
+                for prompt in &all_prompts {
+                    markdown.push_str(&format!("### Prompt ({})\n\n", prompt.id));
+                    markdown.push_str(&format!("**Image:** {}\n\n", prompt.image_id));
+                    markdown.push_str(&format!("**Prompt:** {}\n\n", prompt.prompt_text));
+                    if let Some(neg) = &prompt.negative_prompt {
+                        markdown.push_str(&format!("**Negative Prompt:** {}\n\n", neg));
+                    }
+                    markdown.push_str(&format!("**Type:** {}\n\n", prompt.prompt_type));
+                    markdown.push_str("---\n\n");
+                }
+            }
+
+            HttpResponse::Ok()
+                .content_type("text/markdown")
+                .body(markdown)
+        }
+        "json" => {
+            HttpResponse::Ok()
+                .content_type("application/json")
+                .json(serde_json::json!({
+                    "collection": collection,
+                    "images": images,
+                    "prompts": all_prompts,
+                    "counts": {
+                        "images": images.len(),
+                        "prompts": all_prompts.len()
+                    }
+                }))
+        }
+        _ => HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "Format must be 'json' or 'markdown'"
+        })),
+    }
 }
 

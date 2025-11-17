@@ -634,6 +634,8 @@ function displayCollections(collections) {
             <div class="collection-header">
                 <div class="collection-name">${escapeHtml(collection.name)}</div>
                 <div class="collection-actions">
+                    <button class="btn-icon" onclick="exportCollection('${collection.id}', 'json')" title="Export JSON">📥</button>
+                    <button class="btn-icon" onclick="exportCollection('${collection.id}', 'markdown')" title="Export Markdown">📄</button>
                     <button class="btn-icon" onclick="editCollection('${collection.id}')" title="Edit">✏️</button>
                     <button class="btn-icon" onclick="deleteCollection('${collection.id}')" title="Delete">🗑️</button>
                 </div>
@@ -906,10 +908,51 @@ async function showImageDetail(imageId) {
         `;
         
         document.getElementById('image-modal-title').textContent = image.file_name;
+        
+        // Show footer with delete button
+        const footer = document.getElementById('image-modal-footer');
+        if (footer) {
+            footer.style.display = 'flex';
+            const deleteBtn = document.getElementById('delete-image-btn');
+            if (deleteBtn) {
+                deleteBtn.onclick = () => deleteImage(image.id);
+            }
+        }
     } catch (error) {
         console.error('Failed to load image details:', error);
         showToast('error', 'Failed to load image details', error.message);
         content.innerHTML = '<div class="loading">Failed to load image details</div>';
+    }
+}
+
+async function deleteImage(imageId) {
+    if (!confirm('Are you sure you want to delete this image from the database? This will remove all associated prompts and metadata, but will not delete the file from disk.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/images/${imageId}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Delete failed' }));
+            throw new Error(errorData.error || 'Delete failed');
+        }
+        
+        showToast('success', 'Image Deleted', 'Image removed from database');
+        closeModal('image-modal');
+        
+        // Reload images list if on images tab
+        if (currentTab === 'images') {
+            loadImages(currentPage.images);
+        }
+        
+        // Reload stats
+        loadStats();
+    } catch (error) {
+        console.error('Failed to delete image:', error);
+        showToast('error', 'Delete Failed', error.message);
     }
 }
 
@@ -1271,6 +1314,37 @@ async function exportImages(format = 'json') {
         showToast('success', 'Export Complete', `Images exported as ${format.toUpperCase()}`);
     } catch (error) {
         console.error('Export failed:', error);
+        showToast('error', 'Export Failed', error.message);
+    }
+}
+
+async function exportCollection(collectionId, format = 'json') {
+    try {
+        // Get collection name for filename
+        const collectionData = await apiCall(`/collections/${collectionId}`);
+        const collectionName = collectionData.name || 'collection';
+        const safeName = collectionName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        
+        showToast('info', 'Exporting...', 'Preparing collection export...');
+        const response = await fetch(`${API_BASE}/export/collection/${collectionId}?format=${format}`);
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Export failed' }));
+            throw new Error(errorData.error || 'Export failed');
+        }
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${safeName}-export-${new Date().toISOString().split('T')[0]}.${format === 'json' ? 'json' : 'md'}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        showToast('success', 'Export Complete', `Collection exported as ${format.toUpperCase()}`);
+    } catch (error) {
+        console.error('Collection export failed:', error);
         showToast('error', 'Export Failed', error.message);
     }
 }

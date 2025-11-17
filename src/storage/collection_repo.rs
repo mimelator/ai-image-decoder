@@ -177,5 +177,25 @@ impl CollectionRepository {
 
         Ok(())
     }
+
+    pub fn get_image_ids(&self, collection_id: &str) -> anyhow::Result<Vec<String>> {
+        let conn = self.db.get_connection();
+        let conn = conn.lock().unwrap();
+
+        let mut stmt = conn.prepare(
+            "SELECT image_id FROM collection_images WHERE collection_id = ?1 ORDER BY added_at DESC",
+        )?;
+
+        let image_ids = stmt.query_map(params![collection_id], |row| {
+            Ok(row.get::<_, String>(0)?)
+        })?;
+
+        let mut result = Vec::new();
+        for image_id in image_ids {
+            result.push(image_id?);
+        }
+
+        Ok(result)
+    }
 }
 

@@ -192,6 +192,15 @@ body {
     background-color: var(--bg-secondary);
 }
 
+.btn-danger {
+    background-color: #dc3545;
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: #c82333;
+}
+
 .btn-icon {
     background: none;
     padding: 0.5rem;
