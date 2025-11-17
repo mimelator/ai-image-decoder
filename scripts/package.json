@@ -14,7 +14,9 @@
     "test:detailed": "node test-ui.js --report=detailed",
     "test:visible": "node test-ui.js --headless=false",
     "test:features:visible": "node test-ui-features-playwright.js --headless=false",
-    "test:new-features:visible": "HEADLESS=false node test-new-features-playwright.js"
+    "test:new-features:visible": "HEADLESS=false node test-new-features-playwright.js",
+    "test:prompt-filters": "node test-prompt-filters-playwright.js",
+    "test:prompt-filters:visible": "HEADLESS=false node test-prompt-filters-playwright.js"
   },
   "dependencies": {
     "playwright": "^1.56.1",
