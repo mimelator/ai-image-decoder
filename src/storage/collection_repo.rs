@@ -197,5 +197,35 @@ impl CollectionRepository {
 
         Ok(result)
     }
+
+    /// Get collections that need CLIP interrogation
+    /// Returns collections that have images without clip_generated prompts
+    pub fn get_collections_needing_clip(&self) -> anyhow::Result<Vec<String>> {
+        let conn = self.db.get_connection();
+        let conn = conn.lock().unwrap();
+
+        // Find collections that have images without clip_generated prompts
+        let mut stmt = conn.prepare(
+            "SELECT DISTINCT ci.collection_id
+             FROM collection_images ci
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM prompts p
+                 WHERE p.image_id = ci.image_id
+                 AND p.prompt_type = 'clip_generated'
+             )
+             ORDER BY ci.collection_id",
+        )?;
+
+        let collection_ids = stmt.query_map([], |row| {
+            Ok(row.get::<_, String>(0)?)
+        })?;
+
+        let mut result = Vec::new();
+        for collection_id in collection_ids {
+            result.push(collection_id?);
+        }
+
+        Ok(result)
+    }
 }
 

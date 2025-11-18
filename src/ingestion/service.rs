@@ -401,7 +401,7 @@ impl IngestionService {
 
     fn create_folder_collections(
         &self,
-        root_path: &Path,
+        _root_path: &Path,
         image_files: &[PathBuf],
     ) -> anyhow::Result<()> {
         let mut folder_paths = std::collections::HashSet::new();
@@ -511,4 +511,3 @@ impl IngestionService {
         Ok(())
     }
 }
-

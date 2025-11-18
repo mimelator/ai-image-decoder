@@ -37,6 +37,8 @@
                 <div class="search-bar">
                     <input type="text" id="image-search" placeholder="Search images..." class="search-input">
                     <button id="image-search-btn" class="btn-secondary">Search</button>
+                    <button id="batch-clip-btn" class="btn-primary" onclick="batchInterrogateImages()" style="display: none;">🔍 CLIP Selected (<span id="selected-count">0</span>)</button>
+                    <button id="select-all-btn" class="btn-secondary" onclick="toggleSelectAll()">Select All</button>
                     <button id="export-images-btn" class="btn-secondary" onclick="exportImages('json')">Export JSON</button>
                     <button id="export-images-md-btn" class="btn-secondary" onclick="exportImages('markdown')">Export MD</button>
                 </div>
@@ -118,7 +120,10 @@
             <div id="collections-tab" class="tab-content">
                 <div class="section-header">
                     <h2>Collections</h2>
-                    <button id="create-collection-btn" class="btn-primary">Create Collection</button>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button id="clip-all-collections-btn" class="btn-primary" onclick="interrogateAllCollections()">🔍 CLIP All Collections</button>
+                        <button id="create-collection-btn" class="btn-primary">Create Collection</button>
+                    </div>
                 </div>
                 <div id="collections-list" class="collections-list">
                     <!-- Collections will be loaded here -->

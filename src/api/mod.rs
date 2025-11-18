@@ -15,6 +15,7 @@ pub mod tags;
 pub mod export;
 pub mod stats;
 pub mod version_check;
+pub mod clip;
 
 pub struct ApiState {
     pub db: Database,

@@ -8,6 +8,7 @@ let currentPage = {
 };
 let currentTab = 'images';
 let selectedTags = new Set(); // Track selected tags for filtering
+let selectedImages = new Set(); // Track selected images for batch operations
 let imageFilters = {
     format: '',
     model: '',
@@ -458,12 +459,18 @@ function displayImages(images) {
             thumbnailContent = `<div class="image-placeholder">${image.width && image.height ? `${image.width}×${image.height}` : 'No image'}</div>`;
         }
         
+        const isSelected = selectedImages.has(image.id);
+        
         return `
-        <div class="image-card" onclick="showImageDetail('${image.id}')">
-            <div class="image-thumbnail">
+        <div class="image-card" data-image-id="${image.id}">
+            <div class="image-card-header" style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;">
+                <input type="checkbox" class="image-select-checkbox" data-image-id="${image.id}" ${isSelected ? 'checked' : ''} onchange="toggleImageSelection('${image.id}')" onclick="event.stopPropagation();">
+                <button class="btn-icon btn-small" onclick="interrogateImage('${image.id}'); event.stopPropagation();" title="Generate prompt with CLIP" style="font-size: 0.9rem; padding: 0.25rem 0.5rem;">🔍 CLIP</button>
+            </div>
+            <div class="image-thumbnail" onclick="showImageDetail('${image.id}')" style="cursor: pointer;">
                 ${thumbnailContent}
             </div>
-            <div class="image-info">
+            <div class="image-info" onclick="showImageDetail('${image.id}')" style="cursor: pointer;">
                 <div class="image-name">${escapeHtml(image.file_name)}</div>
                 <div class="image-meta">
                     ${formatFileSize(image.file_size)} • ${image.format.toUpperCase()}
@@ -472,6 +479,9 @@ function displayImages(images) {
         </div>
     `;
     }).join('');
+    
+    // Update batch button visibility after rendering
+    updateBatchButton();
 }
 
 // Load Prompts
@@ -634,6 +644,7 @@ function displayCollections(collections) {
             <div class="collection-header">
                 <div class="collection-name">${escapeHtml(collection.name)}</div>
                 <div class="collection-actions">
+                    <button class="btn-icon btn-primary" onclick="interrogateCollection('${collection.id}')" title="Generate CLIP prompts for all images">🔍 CLIP</button>
                     <button class="btn-icon" onclick="exportCollection('${collection.id}', 'json')" title="Export JSON">📥</button>
                     <button class="btn-icon" onclick="exportCollection('${collection.id}', 'markdown')" title="Export Markdown">📄</button>
                     <button class="btn-icon" onclick="editCollection('${collection.id}')" title="Edit">✏️</button>
@@ -1464,6 +1475,263 @@ async function exportCollection(collectionId, format = 'json') {
     } catch (error) {
         console.error('Collection export failed:', error);
         showToast('error', 'Export Failed', error.message);
+    }
+}
+
+// CLIP Interrogation Functions
+async function interrogateImage(imageId) {
+    try {
+        showToast('info', 'CLIP Interrogation', 'Generating prompt... This may take 10-30 seconds.');
+        
+        const result = await apiCall(`/images/${imageId}/interrogate`, {
+            method: 'POST',
+            body: JSON.stringify({ model: 'clip' })
+        });
+        
+        showToast('success', 'CLIP Interrogation Complete', `Generated prompt: ${result.prompt.substring(0, 100)}...`);
+        
+        // Reload prompts to show the new one
+        if (currentTab === 'prompts') {
+            loadPrompts(currentPage.prompts);
+        }
+        
+        // Show the prompt in a modal or alert
+        const promptText = result.prompt || 'No prompt generated';
+        alert(`CLIP Generated Prompt:\n\n${promptText}`);
+        
+    } catch (error) {
+        console.error('CLIP interrogation failed:', error);
+        showToast('error', 'CLIP Interrogation Failed', error.message);
+    }
+}
+
+async function batchInterrogateImages() {
+    if (selectedImages.size === 0) {
+        showToast('warning', 'No Images Selected', 'Please select at least one image to interrogate.');
+        return;
+    }
+    
+    if (!confirm(`Interrogate ${selectedImages.size} image(s) with CLIP? This may take several minutes.`)) {
+        return;
+    }
+    
+    try {
+        const batchBtn = document.getElementById('batch-clip-btn');
+        batchBtn.disabled = true;
+        batchBtn.textContent = `🔍 Processing... (${selectedImages.size})`;
+        
+        showToast('info', 'Batch CLIP Interrogation', `Processing ${selectedImages.size} images...`);
+        
+        const result = await apiCall('/clip/interrogate/batch', {
+            method: 'POST',
+            body: JSON.stringify({
+                image_ids: Array.from(selectedImages),
+                model: 'clip'
+            })
+        });
+        
+        batchBtn.disabled = false;
+        updateBatchButton();
+        
+        showToast('success', 'Batch Complete', 
+            `Successfully processed ${result.successful} of ${result.total} images. ${result.failed} failed.`);
+        
+        // Clear selection
+        selectedImages.clear();
+        updateBatchButton();
+        displayImages(await getCurrentImages());
+        
+        // Reload prompts if on prompts tab
+        if (currentTab === 'prompts') {
+            loadPrompts(currentPage.prompts);
+        }
+        
+        // Show detailed results
+        if (result.failed > 0) {
+            const failedResults = result.results.filter(r => !r.success);
+            console.warn('Failed interrogations:', failedResults);
+        }
+        
+    } catch (error) {
+        console.error('Batch CLIP interrogation failed:', error);
+        showToast('error', 'Batch Interrogation Failed', error.message);
+        const batchBtn = document.getElementById('batch-clip-btn');
+        if (batchBtn) {
+            batchBtn.disabled = false;
+            updateBatchButton();
+        }
+    }
+}
+
+function toggleImageSelection(imageId) {
+    if (selectedImages.has(imageId)) {
+        selectedImages.delete(imageId);
+    } else {
+        selectedImages.add(imageId);
+    }
+    updateBatchButton();
+}
+
+function toggleSelectAll() {
+    // Get all visible image IDs
+    const checkboxes = document.querySelectorAll('.image-select-checkbox');
+    const allSelected = Array.from(checkboxes).every(cb => cb.checked);
+    
+    checkboxes.forEach(checkbox => {
+        const imageId = checkbox.dataset.imageId;
+        checkbox.checked = !allSelected;
+        if (!allSelected) {
+            selectedImages.add(imageId);
+        } else {
+            selectedImages.delete(imageId);
+        }
+    });
+    
+    updateBatchButton();
+}
+
+function updateBatchButton() {
+    const batchBtn = document.getElementById('batch-clip-btn');
+    const countSpan = document.getElementById('selected-count');
+    
+    if (selectedImages.size > 0) {
+        batchBtn.style.display = 'inline-block';
+        if (countSpan) {
+            countSpan.textContent = selectedImages.size;
+        }
+    } else {
+        batchBtn.style.display = 'none';
+    }
+}
+
+async function getCurrentImages() {
+    try {
+        const query = `/images?page=${currentPage.images}&limit=50`;
+        const data = await apiCall(query);
+        return data.images || [];
+    } catch (error) {
+        console.error('Failed to get current images:', error);
+        return [];
+    }
+}
+
+// Collection CLIP Interrogation
+async function interrogateCollection(collectionId) {
+    try {
+        // Get collection info first
+        const collection = await apiCall(`/collections/${collectionId}`);
+        
+        if (!confirm(`Generate CLIP prompts for all images in collection "${collection.name}"? This may take several minutes depending on the number of images.`)) {
+            return;
+        }
+        
+        showToast('info', 'CLIP Interrogation Started', `Processing collection "${collection.name}"...`);
+        
+        const result = await apiCall(`/collections/${collectionId}/interrogate`, {
+            method: 'POST',
+            body: JSON.stringify({ model: 'clip' })
+        });
+        
+        showToast('success', 'Collection CLIP Complete', 
+            `Successfully processed ${result.successful} of ${result.total} images. ${result.failed} failed.`);
+        
+        // Reload prompts if on prompts tab
+        if (currentTab === 'prompts') {
+            loadPrompts(currentPage.prompts);
+        }
+        
+        // Show detailed results if there were failures
+        if (result.failed > 0) {
+            const failedResults = result.results.filter(r => !r.success);
+            console.warn('Failed interrogations:', failedResults);
+            
+            // Show a summary of failures
+            const errorSummary = failedResults.slice(0, 5).map(r => 
+                `Image ${r.image_id.substring(0, 8)}: ${r.error || 'Unknown error'}`
+            ).join('\n');
+            
+            if (failedResults.length > 5) {
+                alert(`Some images failed CLIP interrogation:\n\n${errorSummary}\n\n... and ${failedResults.length - 5} more. Check console for details.`);
+            } else {
+                alert(`Some images failed CLIP interrogation:\n\n${errorSummary}`);
+            }
+        }
+        
+    } catch (error) {
+        console.error('Collection CLIP interrogation failed:', error);
+        showToast('error', 'Collection CLIP Failed', error.message);
+    }
+}
+
+// Interrogate all collections that need CLIP
+window.interrogateAllCollections = async function interrogateAllCollections() {
+    try {
+        // First, check which collections need CLIP
+        const needingClip = await apiCall('/clip/collections/needing-inspection');
+        
+        if (!needingClip.collections || needingClip.collections.length === 0) {
+            showToast('info', 'All Collections Inspected', 'All collections already have CLIP-generated prompts.');
+            return;
+        }
+        
+        const totalImages = needingClip.collections.reduce((sum, c) => sum + (c.image_count || 0), 0);
+        const collectionNames = needingClip.collections.map(c => c.name).join(', ');
+        
+        if (!confirm(`Generate CLIP prompts for ${needingClip.total} collection(s) with ${totalImages} total images?\n\nCollections: ${collectionNames}\n\nThis may take a very long time. Continue?`)) {
+            return;
+        }
+        
+        const btn = document.getElementById('clip-all-collections-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = '🔍 Processing...';
+        }
+        
+        showToast('info', 'Batch CLIP Started', `Processing ${needingClip.total} collections...`);
+        
+        const result = await apiCall('/clip/interrogate/all-collections', {
+            method: 'POST',
+            body: JSON.stringify({ model: 'clip' })
+        });
+        
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '🔍 CLIP All Collections';
+        }
+        
+        showToast('success', 'Batch CLIP Complete', 
+            `Processed ${result.collections_processed} collections. ${result.total_successful} images successful, ${result.total_failed} failed.`);
+        
+        // Reload prompts if on prompts tab
+        if (currentTab === 'prompts') {
+            loadPrompts(currentPage.prompts);
+        }
+        
+        // Reload collections to update status
+        loadCollections();
+        
+        // Show detailed results
+        if (result.results && result.results.length > 0) {
+            const resultsSummary = result.results.map(r => 
+                `${r.collection_name}: ${r.successful || 0} successful, ${r.failed || 0} failed`
+            ).join('\n');
+            
+            console.log('Collection CLIP results:', result.results);
+            
+            if (result.total_failed > 0) {
+                alert(`Batch CLIP Results:\n\n${resultsSummary}\n\nCheck console for detailed results.`);
+            }
+        }
+        
+    } catch (error) {
+        console.error('Batch collection CLIP failed:', error);
+        showToast('error', 'Batch CLIP Failed', error.message);
+        
+        const btn = document.getElementById('clip-all-collections-btn');
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '🔍 CLIP All Collections';
+        }
     }
 }
 

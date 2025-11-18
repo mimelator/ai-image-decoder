@@ -9,6 +9,7 @@ use crate::api::collections::*;
 use crate::api::tags::*;
 use crate::api::export::*;
 use crate::api::stats::*;
+use crate::api::clip;
 use crate::config::Config;
 use crate::storage::{
     Database, ImageRepository, PromptRepository, MetadataRepository,
@@ -16,7 +17,6 @@ use crate::storage::{
 };
 use crate::ingestion::IngestionService;
 use std::fs;
-use std::sync::Arc;
 
 async fn index_handler() -> actix_web::Result<actix_web::HttpResponse> {
     let content = fs::read_to_string("./static/index.html")
@@ -121,6 +121,13 @@ pub async fn start_server(config: Config) -> std::io::Result<()> {
                     .route("/stats", web::get().to(get_stats))
                     .route("/stats/images", web::get().to(get_image_stats))
                     .route("/stats/prompts", web::get().to(get_prompt_stats))
+                    // CLIP service
+                    .route("/images/{id}/interrogate", web::post().to(clip::interrogate_image))
+                    .route("/clip/interrogate/batch", web::post().to(clip::batch_interrogate))
+                    .route("/collections/{id}/interrogate", web::post().to(clip::interrogate_collection))
+                    .route("/clip/collections/needing-inspection", web::get().to(clip::get_collections_needing_clip))
+                    .route("/clip/interrogate/all-collections", web::post().to(clip::interrogate_all_collections))
+                    .route("/clip/health", web::get().to(clip::clip_health))
             )
             // Static files - use absolute path
             .service(Files::new("/static", {

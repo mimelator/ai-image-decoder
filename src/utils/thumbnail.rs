@@ -1,8 +1,8 @@
-use image::{DynamicImage, GenericImageView, ImageFormat};
+use image::{GenericImageView, ImageFormat};
 use std::path::{Path, PathBuf};
 use std::fs;
 use anyhow::{Result, Context};
-use log::{info, warn};
+use log::info;
 
 /// Generate a thumbnail for an image
 /// 
@@ -15,7 +15,7 @@ pub fn generate_thumbnail(
     image_path: &Path,
     thumbnail_path: &Path,
     max_size: u32,
-    quality: u8,
+    _quality: u8,
 ) -> Result<()> {
     // Ensure thumbnail directory exists
     if let Some(parent) = thumbnail_path.parent() {

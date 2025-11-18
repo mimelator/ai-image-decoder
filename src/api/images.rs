@@ -1,8 +1,8 @@
 use actix_web::{web, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
 use crate::api::ApiState;
-use crate::ingestion::{IngestionService, ScanProgress};
-use std::sync::{Arc, Mutex};
+use crate::ingestion::IngestionService;
+use std::sync::Mutex;
 use std::path::PathBuf;
 use log::{info, warn};
 

@@ -12,7 +12,7 @@ pub struct AddTagRequest {
 
 pub async fn list_tags(
     state: web::Data<ApiState>,
-    query: web::Query<std::collections::HashMap<String, String>>,
+    _query: web::Query<std::collections::HashMap<String, String>>,
 ) -> impl Responder {
     match state.tag_repo.list_all() {
         Ok(tags) => HttpResponse::Ok().json(serde_json::json!({

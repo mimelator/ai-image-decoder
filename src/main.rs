@@ -51,6 +51,21 @@ async fn main() -> anyhow::Result<()> {
     info!("API available at http://{}:{}/api/v1", config.server.host, config.server.port);
     info!("Use '{} scan <directory>' to scan a directory for images", args[0]);
 
+    // Build the URL
+    let url = format!("http://{}:{}", config.server.host, config.server.port);
+    
+    // Start server in background and open browser
+    let server_url = url.clone();
+    tokio::spawn(async move {
+        // Wait a moment for server to start
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        
+        info!("Opening browser at {}", server_url);
+        if let Err(e) = open::that(&server_url) {
+            log::warn!("Failed to open browser: {}. Please manually navigate to {}", e, server_url);
+        }
+    });
+
     // Start web server
     start_server(config).await
         .map_err(|e| anyhow::anyhow!("Server error: {}", e))
